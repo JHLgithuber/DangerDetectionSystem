@@ -49,21 +49,20 @@ class RtspStream:
 
 
 instances_of_imshow_demo = []
+def update_imshow_process(stream_queue_for_process):
+    while True:
+        instances_per_frame = stream_queue_for_process.get()
+        if instances_per_frame is not None:
+            img_bytes = instances_per_frame.row_frame_bytes
+            frame = np.frombuffer(img_bytes, dtype=np.uint8)
+            frame = frame.reshape((instances_per_frame.height, instances_per_frame.width, 3))
+            cv2.imshow(instances_per_frame.stream_name, frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cv2.destroyAllWindows()
 def show_imshow_demo(stream_queue):
-    def update_imshow_process(stream_queue_for_process):
-        while True:
-            instances_per_frame = stream_queue_for_process.get()
-            if instances_per_frame is not None:
-                img_bytes = instances_per_frame.row_frame_bytes
-                frame = np.frombuffer(img_bytes, dtype=np.uint8)
-                frame = frame.reshape((instances_per_frame.height, instances_per_frame.width, 3))
-                cv2.imshow(instances_per_frame.stream_name, frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        cv2.destroyAllWindows()
-
-    imshow_demo_process = Process(target=update_imshow_process, args=stream_queue)
+    imshow_demo_process = Process(target=update_imshow_process, args=(stream_queue,))
     imshow_demo_process.daemon = True
     imshow_demo_process.start()
     instances_of_imshow_demo.append(imshow_demo_process)
