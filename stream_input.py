@@ -29,16 +29,11 @@ class RtspStream:
         self.rawStreamView = None
         self.rtsp_url = rtsp_url
 
-        # self.stream = self.container.streams.video[0]
         self.stream_name = stream_name
 
-        # self.stream_thread = threading.Thread(target=self.__update_frame)
-        # self.stream_thread.daemon = True
-        # self.stream_thread.start()
-        # self.stream_thread.join()
 
         self.stream_queue = Queue()
-        self.stream_process = Process(target=self._update_frame,
+        self.stream_process = Process(target=_update_frame,
                                       args=(self.rtsp_url, self.stream_name, self.stream_queue))
         self.stream_process.daemon = True
         self.stream_process.start()
@@ -54,8 +49,6 @@ class RtspStream:
 
 
 instances_of_imshow_demo = []
-
-
 def show_imshow_demo(stream_queue):
     def update_imshow_process(stream_queue_for_process):
         while True:
