@@ -22,7 +22,9 @@ def _update_frame(rtsp_url, stream_name, stream_queue):
                 width=raw_stream_view.shape[1]
             )
 
-            stream_queue.put(stream_frame_instance)
+            if stream_queue.full():
+                stream_queue.get()
+            stream_queue.put_nowait(stream_frame_instance)
 
     except Exception as e:
         print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
@@ -37,7 +39,7 @@ class RtspStream:
         self.stream_name = stream_name
 
 
-        self.stream_queue = Queue(maxsize=100)
+        self.stream_queue = Queue(maxsize=3600)
         self.stream_process = Process(target=_update_frame,
                                       args=(self.rtsp_url, self.stream_name, self.stream_queue))
         self.stream_process.daemon = True
@@ -96,6 +98,7 @@ if __name__ == "__main__":
 
     for testStream in testStreamList:
         show_imshow_demo(stream_queue=testStream.get_stream_queue())
+        pass
 
     try:
         while True:
