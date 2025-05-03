@@ -1,3 +1,4 @@
+import time
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 import av
 import cv2
@@ -15,7 +16,11 @@ def _update_frame(rtsp_url, stream_name, stream_queue):
             raw_stream_view = frame.to_ndarray(format='bgr24')
             print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
             stream_frame_instance = StreamFrameInstance(
-                stream_name=stream_name, row_frame_bytes=raw_stream_view.tobytes())
+                stream_name=stream_name,
+                row_frame_bytes=raw_stream_view.tobytes(),
+                height=raw_stream_view.shape[0],
+                width=raw_stream_view.shape[1]
+            )
 
             stream_queue.put(stream_frame_instance)
 
@@ -32,7 +37,7 @@ class RtspStream:
         self.stream_name = stream_name
 
 
-        self.stream_queue = Queue()
+        self.stream_queue = Queue(maxsize=100)
         self.stream_process = Process(target=_update_frame,
                                       args=(self.rtsp_url, self.stream_name, self.stream_queue))
         self.stream_process.daemon = True
@@ -45,22 +50,31 @@ class RtspStream:
         return self.stream_queue
 
     def __del__(self):
-        self.stream_process.terminate()
-
+        if self.stream_process.is_alive():
+            self.stream_queue.put(None)
+            self.stream_process.terminate()
+            self.stream_process.join()
 
 instances_of_imshow_demo = []
 def update_imshow_process(stream_queue_for_process):
-    while True:
-        instances_per_frame = stream_queue_for_process.get()
-        if instances_per_frame is not None:
-            img_bytes = instances_per_frame.row_frame_bytes
-            frame = np.frombuffer(img_bytes, dtype=np.uint8)
-            frame = frame.reshape((instances_per_frame.height, instances_per_frame.width, 3))
-            cv2.imshow(instances_per_frame.stream_name, frame)
+    print(f"[INFO] imshow demo process start")
+    try:
+        while True:
+            instances_per_frame = stream_queue_for_process.get()
+            if instances_per_frame is not None:
+                img_bytes = instances_per_frame.row_frame_bytes
+                frame = np.frombuffer(img_bytes, dtype=np.uint8)
+                frame = frame.reshape((instances_per_frame.height, instances_per_frame.width, 3))
+                cv2.imshow(instances_per_frame.stream_name, frame)
+            else:
+                print(f"[INFO] instances_per_frame is None")
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cv2.destroyAllWindows()
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        cv2.destroyAllWindows()
+    except KeyboardInterrupt:
+        print(f"\n{stream_queue_for_process.get().stream_name}is END by KeyboardInterrupt")
+        exit()
 def show_imshow_demo(stream_queue):
     imshow_demo_process = Process(target=update_imshow_process, args=(stream_queue,))
     imshow_demo_process.daemon = True
@@ -69,10 +83,26 @@ def show_imshow_demo(stream_queue):
 
 
 if __name__ == "__main__":
-    testStream0 = RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", stream_name="TEST_0")
-    testStream1 = RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", stream_name="TEST_1")
-    testStream2 = RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", stream_name="TEST_2")
+    testStreamList= [RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", stream_name="TEST_0"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", stream_name="TEST_1"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", stream_name="TEST_2"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", stream_name="TEST_3"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", stream_name="TEST_4"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", stream_name="TEST_5"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", stream_name="TEST_6"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", stream_name="TEST_7"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", stream_name="TEST_8"),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", stream_name="TEST_9"),]
 
-    show_imshow_demo(stream_queue=testStream0.get_stream_queue())
-    show_imshow_demo(stream_queue=testStream1.get_stream_queue())
-    show_imshow_demo(stream_queue=testStream2.get_stream_queue())
+    for testStream in testStreamList:
+        show_imshow_demo(stream_queue=testStream.get_stream_queue())
+
+    try:
+        while True:
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("\nEND by KeyboardInterrupt")
+        for testStream in testStreamList:
+            testStream.__del__()
+        exit()
+

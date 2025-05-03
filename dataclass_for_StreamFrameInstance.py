@@ -8,6 +8,9 @@ class StreamFrameInstance:
     stream_name: str
     captured_datetime: datetime = field(init=False)
     row_frame_bytes: bytes
+    height:int
+    width:int
+
     #해당 프레임의 정보 이것 저것 라벨링 이라던가?
 
     def __post_init__(self):
