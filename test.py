@@ -16,9 +16,6 @@ from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
 from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
-IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
-
-
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Demo!")
     parser.add_argument(
@@ -85,18 +82,6 @@ def make_parser():
     )
     return parser
 
-
-def get_image_list(path):
-    image_names = []
-    for maindir, subdir, file_name_list in os.walk(path):
-        for filename in file_name_list:
-            apath = os.path.join(maindir, filename)
-            ext = os.path.splitext(apath)[1]
-            if ext in IMAGE_EXT:
-                image_names.append(apath)
-    return image_names
-
-
 class Predictor(object):
     def __init__(
             self,
@@ -119,15 +104,6 @@ class Predictor(object):
         self.device = device
         self.fp16 = fp16
         self.preproc = ValTransform(legacy=legacy)
-        if trt_file is not None:
-            from torch2trt import TRTModule
-
-            model_trt = TRTModule()
-            model_trt.load_state_dict(torch.load(trt_file))
-
-            x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
-            self.model(x)
-            self.model = model_trt
 
     def inference(self, img):
         img_info = {"id": 0}
@@ -184,28 +160,6 @@ class Predictor(object):
         return vis_res
 
 
-def image_demo(predictor, vis_folder, path, current_time, save_result):
-    if os.path.isdir(path):
-        files = get_image_list(path)
-    else:
-        files = [path]
-    files.sort()
-    for image_name in files:
-        outputs, img_info = predictor.inference(image_name)
-        result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
-        if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
-            os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
-            logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, result_image)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
-
-
 def imageflow_demo(predictor, vis_folder, current_time, args):
     cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
@@ -224,22 +178,34 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         vid_writer = cv2.VideoWriter(
             save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
         )
-    while True:
-        ret_val, frame = cap.read()
-        if ret_val:
-            outputs, img_info = predictor.inference(frame)
-            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
-            if args.save_result:
-                vid_writer.write(result_frame)
-            else:
-                cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
-                cv2.imshow("yolox", result_frame)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord("Q"):
-                break
-        else:
-            break
 
+    # 1) 비디오 전체 프레임을 미리 읽어서 리스트에 저장
+    frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(frame)
+    cap.release()  # 더 이상 캡처 필요 없으므로 해제
+
+
+    # 2) 처리 루프를 cap.read() 대신 리스트 순회로 변경
+    for frame in frames:
+    # while True:
+    #     ret_val, frame = cap.read()
+    #     if ret_val:
+            outputs, img_info = predictor.inference(frame)
+            # result_frame = predictor.visual(outputs[0], img_info, predictor.confthre) #박스 그리기
+            if args.save_result:
+                pass
+                #vid_writer.write(result_frame) #파일로 저장
+                #cv2.namedWindow("yolox", cv2.WINDOW_NORMAL) #GUI화면으로 출력
+                #cv2.imshow("yolox", result_frame)
+            # ch = cv2.waitKey(1)
+            # if ch == 27 or ch == ord("q") or ch == ord("Q"):
+            #     break
+        # else:
+        #     break
 
 def main(exp, args):
     if not args.experiment_name:
@@ -285,32 +251,13 @@ def main(exp, args):
         model.load_state_dict(ckpt["model"])
         logger.info("loaded checkpoint done.")
 
-    if args.fuse:
-        logger.info("\tFusing model...")
-        model = fuse_model(model)
-
-    if args.trt:
-        assert not args.fuse, "TensorRT model is not support model fusing!"
-        trt_file = os.path.join(file_name, "model_trt.pth")
-        assert os.path.exists(
-            trt_file
-        ), "TensorRT model is not found!\n Run python3 tools/trt.py first!"
-        model.head.decode_in_inference = False
-        decoder = model.head.decode_outputs
-        logger.info("Using TensorRT to inference")
-    else:
-        trt_file = None
-        decoder = None
-
     predictor = Predictor(
-        model, exp, COCO_CLASSES, trt_file, decoder,
+        model, exp, COCO_CLASSES, None, None,
         args.device, args.fp16, args.legacy,
     )
     current_time = time.localtime()
-    if args.demo == "image":
-        image_demo(predictor, vis_folder, args.path, current_time, args.save_result)
-    elif args.demo == "video" or args.demo == "webcam":
-        imageflow_demo(predictor, vis_folder, current_time, args)
+    imageflow_demo(predictor, vis_folder, current_time, args)
+
 
 
 if __name__ == "__main__":
