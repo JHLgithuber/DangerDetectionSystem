@@ -106,17 +106,14 @@ class Predictor(object):
         self.preproc = ValTransform(legacy=legacy)
 
     def inference(self, img):
+        #실질적 추론 메서드
         img_info = {"id": 0}
-        if isinstance(img, str):
-            img_info["file_name"] = os.path.basename(img)
-            img = cv2.imread(img)
-        else:
-            img_info["file_name"] = None
+        img_info["file_name"] = None
 
         height, width = img.shape[:2]
         img_info["height"] = height
         img_info["width"] = width
-        img_info["raw_img"] = img
+        #img_info["raw_img"] = img
 
         ratio = min(self.test_size[0] / img.shape[0], self.test_size[1] / img.shape[1])
         img_info["ratio"] = ratio
@@ -125,7 +122,7 @@ class Predictor(object):
         img = torch.from_numpy(img).unsqueeze(0)
         img = img.float()
         if self.device == "gpu":
-            img = img.cuda()
+            img = img.cuda() #GPU로 업로드
             if self.fp16:
                 img = img.half()  # to FP16
 
@@ -146,7 +143,7 @@ class Predictor(object):
         img = img_info["raw_img"]
         if output is None:
             return img
-        output = output.cpu()
+        output = output.cpu()   #CPU로 다운로드
 
         bboxes = output[:, 0:4]
 
@@ -194,7 +191,10 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     # while True:
     #     ret_val, frame = cap.read()
     #     if ret_val:
-            outputs, img_info = predictor.inference(frame)
+            outputs, img_info = predictor.inference(frame)  #TODO: 사전에 올려놓을 수 있게 해야
+            if outputs[0] is not None:  #인간만 추출
+                mask = outputs[0][:, 6] == 0
+                outputs[0] = outputs[0][mask]
             # result_frame = predictor.visual(outputs[0], img_info, predictor.confthre) #박스 그리기
             if args.save_result:
                 pass
