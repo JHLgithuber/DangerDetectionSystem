@@ -98,11 +98,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="디폴트 값 테스트")
     parser.add_argument("--debug", type=bool, default=False, help="디버그 로그 출력")
     parser.add_argument("--show", type=bool, default=True, help="스트림 화면 출력")
-
     args = parser.parse_args()
 
-    debugMode=False
-    showMode=True
+    debugMode=args.debug
+    showMode=args.show
     testStreamList= [RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", stream_name="TEST_0", debug=debugMode),
                      RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", stream_name="TEST_1", debug=debugMode),
                      RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", stream_name="TEST_2", debug=debugMode),
