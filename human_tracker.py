@@ -20,7 +20,7 @@ from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
 import stream_input
 
-def _inference_worker(input_queue, output_queue, args):
+def _inference_worker(input_queue, output_queue, args, all_object=False):
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
     ckpt = torch.load(args.ckpt, map_location="cpu")
@@ -36,7 +36,7 @@ def _inference_worker(input_queue, output_queue, args):
         legacy=args.legacy
     )
 
-    predictor.inference(input_queue, output_queue)
+    predictor.inference(input_queue=input_queue, output_queue=output_queue, all_object=all_object)
 
 class Predictor(object):
     def __init__(
@@ -61,7 +61,7 @@ class Predictor(object):
         self.fp16 = fp16
         self.preproc = ValTransform(legacy=legacy)
 
-    def inference(self, input_queue, output_queue):
+    def inference(self, input_queue, output_queue, all_object=False):
         #실질적 추론 메서드
         while(True):
             if input_queue.empty():
@@ -93,8 +93,9 @@ class Predictor(object):
             if output is not None:
                 output = output.cpu().clone()
                 # 사람 필터링도 여기서
-                mask = output[:, 6] == 0
-                output = output[mask]
+                if not all_object:
+                    mask = output[:, 6] == 0
+                    output = output[mask]
                 logger.info("Infer time: {:.4f}s".format(time.time() - t0))
                 output_queue.put({"output_numpy":output.numpy(),"id":id})
             else:
@@ -103,13 +104,13 @@ class Predictor(object):
 
 
 
-def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4):
+def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False):
     infrence_worker_set=set()
     input_queue=Queue(maxsize=128)
     output_queue=Queue(maxsize=128)
     waiting_instance_dict=dict()
     for _ in range(worker_num):
-        infrence_worker_process=Process(target=_inference_worker,args=(input_queue,output_queue,args))
+        infrence_worker_process=Process(target=_inference_worker,args=(input_queue,output_queue,args,all_object))
         infrence_worker_process.daemon=True
         infrence_worker_process.start()
         infrence_worker_set.add(infrence_worker_process)
@@ -184,7 +185,7 @@ def main(exp, args, stream_queue, return_queue):
 
     imageflow_demo_process = Process(
         target=imageflow_demo,
-        args=(predictor, args, stream_queue, return_queue, 4)
+        args=(predictor, args, stream_queue, return_queue, 4, True)
     )
     imageflow_demo_process.daemon=False
     return imageflow_demo_process
@@ -193,12 +194,12 @@ def get_args():
     hard_args = argparse.Namespace(
         demo="video",
         experiment_name=None,
-        name="yolox-s",
+        name="yolox-x",
         path="streetTestVideo.mp4",
         camid=0,
         show_result=True,
         exp_file=None,
-        ckpt="yolox_s.pth",
+        ckpt="yolox_x.pth",
         device="gpu",
         conf=0.25,
         nms=0.45,
@@ -233,6 +234,6 @@ if __name__ == "__main__":
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue, stream_name="TEST_5", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue, stream_name="TEST_6", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue, stream_name="TEST_7", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue, stream_name="TEST_8", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue, stream_name="TEST_8", debug=debugMode),
         stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue, stream_name="TEST_9", debug=debugMode), ]
     detector_process.join()
