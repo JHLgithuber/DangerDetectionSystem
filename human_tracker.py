@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii, Inc. and its affiliates.
-
+import multiprocessing
 import uuid
 import argparse
 import os
@@ -20,10 +20,13 @@ from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
 import stream_input
 
+multiprocessing.set_start_method('spawn', force=True)
+
+
 def _inference_worker(input_queue, output_queue, args, all_object=False):
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
-    ckpt = torch.load(args.ckpt, map_location="cpu")
+    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt["model"])
     model.cuda()
     model.eval()
@@ -37,6 +40,7 @@ def _inference_worker(input_queue, output_queue, args, all_object=False):
     )
 
     predictor.inference(input_queue=input_queue, output_queue=output_queue, all_object=all_object)
+
 
 class Predictor(object):
     def __init__(
@@ -61,27 +65,40 @@ class Predictor(object):
         self.fp16 = fp16
         self.preproc = ValTransform(legacy=legacy)
 
-    def inference(self, input_queue, output_queue, all_object=False):
-        #실질적 추론 메서드
-        while(True):
+    def inference(self, input_queue, output_queue, all_object=False, batch_size=6, max_wait=0.01,):
+        # 실질적 추론 메서드
+        batch_inputs = []
+        batch_ids = []
+        last_collect = time.time()
+
+        while (True):
             if input_queue.empty():
                 time.sleep(0.001)
                 continue
-            input_dict=input_queue.get()
+            input_dict = input_queue.get()
             img = input_dict["img"]
             id = input_dict["id"]
 
-            img, _ = self.preproc(img, None, self.test_size)
-            img = torch.from_numpy(img).unsqueeze(0)
-            img = img.float()
+            batch_inputs.append(input_dict["img"])
+            batch_ids.append(input_dict["id"])
+
+            if not (len(batch_inputs) >= batch_size or (batch_inputs and time.time() - last_collect > max_wait)):
+                continue
+
+            imgs = []
+            for img in batch_inputs:
+                img, _ = self.preproc(img, None, self.test_size)
+                imgs.append(img)
+            # (B, C, H, W) 텐서로 변환
+            batch_tensor = torch.from_numpy(np.stack(imgs, axis=0)).float()
             if self.device == "gpu":
-                img = img.cuda() #GPU로 업로드
+                batch_tensor = batch_tensor.cuda()  # GPU로 업로드
                 if self.fp16:
-                    img = img.half()  # to FP16
+                    batch_tensor = batch_tensor.half()  # to FP16
 
             with torch.no_grad():
                 t0 = time.time()
-                outputs = self.model(img)
+                outputs = self.model(batch_tensor)
                 if self.decoder is not None:
                     outputs = self.decoder(outputs, dtype=outputs.type())
                 outputs = postprocess(
@@ -89,29 +106,40 @@ class Predictor(object):
                     self.nmsthre, class_agnostic=True
                 )
 
-            output = outputs[0]
-            if output is not None:
-                output = output.cpu().clone()
-                # 사람 필터링도 여기서
-                if not all_object:
-                    mask = output[:, 6] == 0
-                    output = output[mask]
-                logger.info("Infer time: {:.4f}s".format(time.time() - t0))
-                output_queue.put({"output_numpy":output.numpy(),"id":id})
-            else:
-                logger.info("Infer FAIL time: {:.4f}s".format(time.time() - t0))
-                output_queue.put({"output_numpy":None,"id":id})
+            # 3) 각 프레임별로 후처리 & 큐에 넣기
+            infer_time = time.time() - t0
+            for out, fid in zip(outputs, batch_ids):
+                if out is not None:
+                    out = out.cpu().clone()
+                    if not all_object:
+                        mask = out[:, 6] == 0
+                        out = out[mask]
+                    output_queue.put({
+                        "output_numpy": out.numpy(),
+                        "id": fid,
+                        "infer_time": infer_time
+                    })
+                else:
+                    output_queue.put({
+                        "output_numpy": None,
+                        "id": fid,
+                        "infer_time": infer_time
+                    })
 
+            # 4) 배치 초기화
+            batch_inputs.clear()
+            batch_ids.clear()
+            last_collect = time.time()
 
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False):
-    infrence_worker_set=set()
-    input_queue=Queue(maxsize=128)
-    output_queue=Queue(maxsize=128)
-    waiting_instance_dict=dict()
+    infrence_worker_set = set()
+    input_queue = Queue(maxsize=128)
+    output_queue = Queue(maxsize=128)
+    waiting_instance_dict = dict()
     for _ in range(worker_num):
-        infrence_worker_process=Process(target=_inference_worker,args=(input_queue,output_queue,args,all_object))
-        infrence_worker_process.daemon=True
+        infrence_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object))
+        infrence_worker_process.daemon = True
         infrence_worker_process.start()
         infrence_worker_set.add(infrence_worker_process)
 
@@ -120,23 +148,24 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
             if not stream_queue.empty():
                 # 큐에서 프레임 객체 꺼내기
                 stream_frame_instance = stream_queue.get(timeout=0.001)
-                instance_id=stream_frame_instance.stream_name + stream_frame_instance.captured_datetime.strftime("%Y%m%d%H%M%S%f")
-                waiting_instance_dict[instance_id]=stream_frame_instance
+                instance_id = stream_frame_instance.stream_name + stream_frame_instance.captured_datetime.strftime(
+                    "%Y%m%d%H%M%S%f")
+                waiting_instance_dict[instance_id] = stream_frame_instance
 
                 # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
                 frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
                 frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
 
                 # 추론 수행
-                input_queue.put({"img":frame,"id":instance_id})
+                input_queue.put({"img": frame, "id": instance_id})
 
             if not output_queue.empty():
-                output_dict=output_queue.get()
+                output_dict = output_queue.get()
                 if output_dict["id"] in waiting_instance_dict:
                     if return_queue.full():
                         return_queue.get()
-                    output_frame_instance=waiting_instance_dict.pop(output_dict["id"])
-                    output_frame_instance.human_detection_numpy=output_dict["output_numpy"]
+                    output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
+                    output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
                     return_queue.put(output_frame_instance)
                 else:
                     logger.info("output_dict id not found")
@@ -173,7 +202,7 @@ def main(exp, args, stream_queue, return_queue):
 
     ckpt_file = args.ckpt
     logger.info("loading checkpoint")
-    ckpt = torch.load(ckpt_file, map_location="cpu")
+    ckpt = torch.load(ckpt_file, map_location="cpu", weights_only=True)
     # load the model state dict
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
@@ -187,8 +216,9 @@ def main(exp, args, stream_queue, return_queue):
         target=imageflow_demo,
         args=(predictor, args, stream_queue, return_queue, 4, True)
     )
-    imageflow_demo_process.daemon=False
+    imageflow_demo_process.daemon = False
     return imageflow_demo_process
+
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -211,29 +241,40 @@ def get_args():
     )
     return hard_args
 
+
 if __name__ == "__main__":
     args = get_args()
     exp = get_exp(args.exp_file, args.name)
 
-    debugMode=True
-    #showMode=True
+    debugMode = False
+    # showMode=True
     stream_queue = Manager().Queue(maxsize=128)
     return_queue = Manager().Queue(maxsize=128)
 
-
     demo_viewer.start_imshow_demo(stream_queue=return_queue)
     time.sleep(1)
-    detector_process=main(exp, args, stream_queue, return_queue)
+    detector_process = main(exp, args, stream_queue, return_queue)
     detector_process.start()
     time.sleep(3)
-    testStreamList= [#stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=stream_queue, stream_name="TEST_0", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue, stream_name="TEST_1", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=stream_queue, stream_name="TEST_2", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=stream_queue, stream_name="TEST_3", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", manager_queue=stream_queue, stream_name="TEST_4", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue, stream_name="TEST_5", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue, stream_name="TEST_6", debug=debugMode),
-        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue, stream_name="TEST_7", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue, stream_name="TEST_8", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue, stream_name="TEST_9", debug=debugMode), ]
+    testStreamList = [
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=stream_queue,
+                                stream_name="TEST_0", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue,
+                                stream_name="TEST_1", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_2", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_3", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_4", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_5", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue,
+                                stream_name="TEST_6", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue,
+                                stream_name="TEST_7", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue,
+                                stream_name="TEST_8", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue,
+                                stream_name="TEST_9", debug=debugMode), ]
     detector_process.join()
