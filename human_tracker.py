@@ -12,7 +12,6 @@ import torch
 import numpy as np
 import demo_viewer
 import queue
-from threading import Thread
 from multiprocessing import Queue, Process, Manager
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
@@ -20,6 +19,24 @@ from yolox.exp import get_exp
 from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
 import stream_input
+
+def _inference_worker(input_queue, output_queue, args):
+    exp = get_exp(args.exp_file, args.name)
+    model = exp.get_model()
+    ckpt = torch.load(args.ckpt, map_location="cpu")
+    model.load_state_dict(ckpt["model"])
+    model.cuda()
+    model.eval()
+
+    predictor = Predictor(
+        model=model,
+        exp=exp,
+        device=args.device,
+        fp16=args.fp16,
+        legacy=args.legacy
+    )
+
+    predictor.inference(input_queue, output_queue)
 
 class Predictor(object):
     def __init__(
@@ -74,7 +91,7 @@ class Predictor(object):
 
             output = outputs[0]
             if output is not None:
-                output = output.cpu()
+                output = output.cpu().clone()
                 # 사람 필터링도 여기서
                 mask = output[:, 6] == 0
                 output = output[mask]
@@ -88,14 +105,14 @@ class Predictor(object):
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4):
     infrence_worker_set=set()
-    input_queue=queue.Queue(maxsize=128)
-    output_queue=queue.Queue(maxsize=128)
+    input_queue=Queue(maxsize=128)
+    output_queue=Queue(maxsize=128)
     waiting_instance_dict=dict()
     for _ in range(worker_num):
-        infrence_worker_thread=Thread(target=predictor.inference,args=(input_queue,output_queue))
-        infrence_worker_thread.daemon=True
-        infrence_worker_thread.start()
-        infrence_worker_set.add(infrence_worker_thread)
+        infrence_worker_process=Process(target=_inference_worker,args=(input_queue,output_queue,args))
+        infrence_worker_process.daemon=True
+        infrence_worker_process.start()
+        infrence_worker_set.add(infrence_worker_process)
 
     while True:
         try:
@@ -169,9 +186,8 @@ def main(exp, args, stream_queue, return_queue):
         target=imageflow_demo,
         args=(predictor, args, stream_queue, return_queue, 4)
     )
-    imageflow_demo_process.daemon=True
-    imageflow_demo_process.start()
-    imageflow_demo_process.join()
+    imageflow_demo_process.daemon=False
+    return imageflow_demo_process
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -203,17 +219,20 @@ if __name__ == "__main__":
     stream_queue = Manager().Queue(maxsize=128)
     return_queue = Manager().Queue(maxsize=128)
 
-    testStreamList= [stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=stream_queue, stream_name="TEST_0", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue, stream_name="TEST_1", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=stream_queue, stream_name="TEST_2", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=stream_queue, stream_name="TEST_3", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", manager_queue=stream_queue, stream_name="TEST_4", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue, stream_name="TEST_5", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue, stream_name="TEST_6", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue, stream_name="TEST_7", debug=debugMode),
-                     #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue, stream_name="TEST_8", debug=debugMode),
-                     stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue, stream_name="TEST_9", debug=debugMode), ]
 
-    #demo_viewer.start_imshow_demo(stream_queue=return_queue)
-    main(exp, args, stream_queue, return_queue)
-
+    demo_viewer.start_imshow_demo(stream_queue=return_queue)
+    time.sleep(1)
+    detector_process=main(exp, args, stream_queue, return_queue)
+    detector_process.start()
+    time.sleep(3)
+    testStreamList= [#stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=stream_queue, stream_name="TEST_0", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue, stream_name="TEST_1", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=stream_queue, stream_name="TEST_2", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=stream_queue, stream_name="TEST_3", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", manager_queue=stream_queue, stream_name="TEST_4", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue, stream_name="TEST_5", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue, stream_name="TEST_6", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue, stream_name="TEST_7", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue, stream_name="TEST_8", debug=debugMode),
+        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue, stream_name="TEST_9", debug=debugMode), ]
+    detector_process.join()
