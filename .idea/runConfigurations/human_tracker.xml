@@ -14,7 +14,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/human_tracker.py" />
-    <option name="PARAMETERS" value="video -n yolox-s -c yolox_s.pth --path streetTestVideo.mp4 --conf 0.25 --nms 0.45 --tsize 640 --save_result --device gpu" />
+    <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

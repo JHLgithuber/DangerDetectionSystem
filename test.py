@@ -6,11 +6,8 @@ import argparse
 import os
 import time
 from loguru import logger
-
 import cv2
-
 import torch
-
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
@@ -113,7 +110,7 @@ class Predictor(object):
         height, width = img.shape[:2]
         img_info["height"] = height
         img_info["width"] = width
-        #img_info["raw_img"] = img
+        img_info["raw_img"] = img
 
         ratio = min(self.test_size[0] / img.shape[0], self.test_size[1] / img.shape[1])
         img_info["ratio"] = ratio
@@ -153,7 +150,7 @@ class Predictor(object):
         cls = output[:, 6]
         scores = output[:, 4] * output[:, 5]
 
-        vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names)
+        vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names)   #프레임에 결과 그려줌
         return vis_res
 
 
@@ -195,17 +192,17 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             if outputs[0] is not None:  #인간만 추출
                 mask = outputs[0][:, 6] == 0
                 outputs[0] = outputs[0][mask]
-            # result_frame = predictor.visual(outputs[0], img_info, predictor.confthre) #박스 그리기
+            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre) #박스 그리기
             if args.save_result:
-                pass
+                #pass
                 #vid_writer.write(result_frame) #파일로 저장
-                #cv2.namedWindow("yolox", cv2.WINDOW_NORMAL) #GUI화면으로 출력
-                #cv2.imshow("yolox", result_frame)
-            # ch = cv2.waitKey(1)
-            # if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            #     break
-        # else:
-        #     break
+                cv2.namedWindow("yolox", cv2.WINDOW_NORMAL) #GUI화면으로 출력
+                cv2.imshow("yolox", result_frame)
+                ch = cv2.waitKey(1)
+                if ch == 27 or ch == ord("q") or ch == ord("Q"):
+                     break
+            else:
+                 break
 
 def main(exp, args):
     if not args.experiment_name:

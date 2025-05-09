@@ -1,12 +1,15 @@
 import sys
 import time
+from msilib import add_stream
+
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 import av
 import argparse
 import cv2
 import numpy as np
 import uuid
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, Manager
+from threading import Thread
 
 
 def _update_frame(rtsp_url, stream_name, stream_queue, debug=False):
@@ -34,18 +37,19 @@ def _update_frame(rtsp_url, stream_name, stream_queue, debug=False):
 
 
 class RtspStream:
-    def __init__(self, rtsp_url, stream_name=str(uuid.uuid4()), debug=False):
+    def __init__(self, rtsp_url, manager_queue, stream_name=str(uuid.uuid4()), debug=False):
         self.rawStreamView = None
         self.rtsp_url = rtsp_url
         self.stream_name = stream_name
         self.debug=debug
+        self.stream_queue = manager_queue
 
 
-        self.stream_queue = Queue(maxsize=3600)
-        self.stream_process = Process(target=_update_frame,
+        #self.stream_queue = manager_queue.Queue(maxsize=720)
+        self.stream_thread = Thread(target=_update_frame, name=self.stream_name,
                                       args=(self.rtsp_url, self.stream_name, self.stream_queue, self.debug))
-        self.stream_process.daemon = True
-        self.stream_process.start()
+        self.stream_thread.daemon = True
+        self.stream_thread.start()
 
     def get_stream_name(self):
         return self.stream_name
@@ -54,10 +58,9 @@ class RtspStream:
         return self.stream_queue
 
     def __del__(self):
-        if self.stream_process.is_alive():
+        if self.stream_thread.is_alive():
             self.stream_queue.put(None)
-            self.stream_process.terminate()
-            self.stream_process.join()
+            self.stream_thread.join()
 
 instances_of_imshow_demo = []
 def _update_imshow_process(stream_queue_for_process):
@@ -94,6 +97,8 @@ def show_imshow_demo(stream_queue):
         raise KeyboardInterrupt
 
 
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="디폴트 값 테스트")
     parser.add_argument("--debug", type=bool, default=False, help="디버그 로그 출력")
@@ -102,16 +107,18 @@ if __name__ == "__main__":
 
     debugMode=args.debug
     showMode=args.show
-    testStreamList= [RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", stream_name="TEST_0", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", stream_name="TEST_1", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", stream_name="TEST_2", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", stream_name="TEST_3", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", stream_name="TEST_4", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", stream_name="TEST_5", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", stream_name="TEST_6", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", stream_name="TEST_7", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", stream_name="TEST_8", debug=debugMode),
-                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", stream_name="TEST_9", debug=debugMode),]
+    manager = Manager()
+
+    testStreamList= [RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=manager.Queue(), stream_name="TEST_0", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=manager.Queue(), stream_name="TEST_2", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=manager.Queue(), stream_name="TEST_3", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv072.stream", manager_queue=manager.Queue(), stream_name="TEST_4", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=manager.Queue(), stream_name="TEST_5", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=manager.Queue(), stream_name="TEST_6", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=manager.Queue(), stream_name="TEST_1", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=manager.Queue(), stream_name="TEST_7", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=manager.Queue(), stream_name="TEST_8", debug=debugMode),
+                     RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=manager.Queue(), stream_name="TEST_9", debug=debugMode),]
 
     testShowList=[]
     if showMode:
