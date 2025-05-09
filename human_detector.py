@@ -71,7 +71,7 @@ class Predictor(object):
         batch_ids = []
         last_collect = time.time()
 
-        while (True):
+        while True:
             if input_queue.empty():
                 time.sleep(0.001)
                 continue
@@ -130,6 +130,7 @@ class Predictor(object):
             batch_inputs.clear()
             batch_ids.clear()
             last_collect = time.time()
+            time.sleep(0.0001)
 
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False):
@@ -269,10 +270,10 @@ if __name__ == "__main__":
         #                        stream_name="TEST_4", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv073.stream", manager_queue=stream_queue,
         #                        stream_name="TEST_5", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue,
-                                stream_name="TEST_6", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue,
-                                stream_name="TEST_7", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv074.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_6", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_7", debug=debugMode),
         stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue,
                                 stream_name="TEST_8", debug=debugMode),
         stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue,
