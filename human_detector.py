@@ -73,11 +73,9 @@ class Predictor(object):
 
         while True:
             if input_queue.empty():
-                time.sleep(0.001)
+                time.sleep(1/30)
                 continue
             input_dict = input_queue.get()
-            img = input_dict["img"]
-            id = input_dict["id"]
 
             batch_inputs.append(input_dict["img"])
             batch_ids.append(input_dict["id"])
@@ -135,8 +133,8 @@ class Predictor(object):
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False):
     infrence_worker_set = set()
-    input_queue = Queue(maxsize=128)
-    output_queue = Queue(maxsize=128)
+    input_queue = Queue(maxsize=32)
+    output_queue = Queue(maxsize=32)
     waiting_instance_dict = dict()
     for _ in range(worker_num):
         infrence_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object))
@@ -148,17 +146,21 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
         try:
             if not stream_queue.empty():
                 # 큐에서 프레임 객체 꺼내기
-                stream_frame_instance = stream_queue.get(timeout=0.001)
-                instance_id = stream_frame_instance.stream_name + stream_frame_instance.captured_datetime.strftime(
-                    "%Y%m%d%H%M%S%f")
-                waiting_instance_dict[instance_id] = stream_frame_instance
+                stream_frame_instance = stream_queue.get(timeout=1/30)
+                if stream_frame_instance.bypass_flag is False:
+                    instance_id = stream_frame_instance.stream_name + stream_frame_instance.captured_datetime.strftime(
+                        "%Y%m%d%H%M%S%f")
+                    waiting_instance_dict[instance_id] = stream_frame_instance
 
-                # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
-                frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
-                frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
+                    # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
+                    frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
+                    frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
 
-                # 추론 수행
-                input_queue.put({"img": frame, "id": instance_id})
+                    # 추론 수행
+                    input_queue.put({"img": frame, "id": instance_id})
+                elif stream_frame_instance.bypass_flag is True:
+                    return_queue.put(stream_frame_instance)
+
 
             if not output_queue.empty():
                 output_dict = output_queue.get()
@@ -170,6 +172,8 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                     return_queue.put(output_frame_instance)
                 else:
                     logger.info("output_dict id not found")
+
+            time.sleep(1/30)
 
 
         except queue.Empty:
@@ -225,12 +229,12 @@ def get_args():
     hard_args = argparse.Namespace(
         demo="video",
         experiment_name=None,
-        name="yolox-x",
+        name="yolox-s",
         path="streetTestVideo.mp4",
         camid=0,
         show_result=True,
         exp_file=None,
-        ckpt="yolox_x.pth",
+        ckpt="yolox_s.pth",
         device="gpu",
         conf=0.25,
         nms=0.45,
@@ -260,8 +264,8 @@ if __name__ == "__main__":
     testStreamList = [
         stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv068.stream", manager_queue=stream_queue,
                                 stream_name="TEST_0", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue,
-                                stream_name="TEST_1", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv069.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_1", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv070.stream", manager_queue=stream_queue,
         #                        stream_name="TEST_2", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv071.stream", manager_queue=stream_queue,
@@ -274,8 +278,8 @@ if __name__ == "__main__":
         #                        stream_name="TEST_6", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv075.stream", manager_queue=stream_queue,
         #                        stream_name="TEST_7", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue,
-                                stream_name="TEST_8", debug=debugMode),
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_8", debug=debugMode),
         stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue,
                                 stream_name="TEST_9", debug=debugMode), ]
     detector_process.join()

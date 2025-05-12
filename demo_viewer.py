@@ -9,8 +9,7 @@ import dataclass_for_StreamFrameInstance
 from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
-
-def visual(stream_frame_instance, cls_conf=0.35):
+def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
@@ -31,6 +30,32 @@ def visual(stream_frame_instance, cls_conf=0.35):
     vis_res = vis(row_img, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # 프레임에 결과 그려줌
     return vis_res
 
+def visual_from_tracking_serial(stream_frame_instance, cls_conf=0.35):
+    # 프레임 복원
+    frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
+    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
+    output = frame.copy()
+    serialized_tracks = stream_frame_instance.human_tracking_serial
+
+    for obj in serialized_tracks:
+        score = obj["confidence"]
+        if score < cls_conf:
+            continue
+
+        x1, y1, x2, y2 = obj["bbox"]
+        cls_name = obj["class"]
+        tid = obj["track_id"]
+
+        label = f"{cls_name}#{tid} ({score:.2f})"
+        color = (0, 255, 0)  # 필요시 cls_name에 따라 색 다르게
+
+        cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(output, label, (x1, y1 - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+    return output
+
+
 
 def _update_imshow_process(stream_queue_for_process):
     stream_name = stream_queue_for_process.get().stream_name
@@ -41,14 +66,17 @@ def _update_imshow_process(stream_queue_for_process):
         while True:
             instances_per_frame_instance = stream_queue_for_process.get()
             if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.human_detection_numpy is not None:
-                    result_frame = visual(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
-                    # print(f"[INFO] {stream_name} imshow demo process visual")
+                if instances_per_frame_instance.human_tracking_serial is not None:
+                    print(f"[INFO] {stream_name} instances_per_frame is not None")
+                    result_frame = visual_from_tracking_serial(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
+
+                elif instances_per_frame_instance.human_detection_numpy is not None:
+                    result_frame = visual_from_detection_numpy(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
+
                 else:
                     result_frame = np.frombuffer(instances_per_frame_instance.row_frame_bytes, dtype=np.uint8)
                     result_frame = result_frame.reshape(
                         (instances_per_frame_instance.height, instances_per_frame_instance.width, 3))
-                    # print(f"[INFO] {stream_name} imshow demo process no visual")
 
                 cv2.imshow(stream_name, result_frame)
             else:

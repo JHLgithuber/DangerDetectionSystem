@@ -13,24 +13,34 @@ from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 
 
-def _update_frame(rtsp_url, stream_name, stream_queue, debug=False):
+def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=5,):
     try:
         print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
         container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
+        bypassed_count = 0
         for frame in container.decode(video=0):
                 raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
                 if debug: print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
+
+                if bypassed_count < bypass_frame:
+                    bypassed_count += 1
+                    bypass_flag = True
+                else:
+                    bypass_flag = False
+                    bypassed_count = 0
+
                 stream_frame_instance = StreamFrameInstance(
                     stream_name=stream_name,
                     row_frame_bytes=raw_stream_view.tobytes(),
                     height=raw_stream_view.shape[0],
-                    width=raw_stream_view.shape[1]
+                    width=raw_stream_view.shape[1],
+                    bypass_flag=bypass_flag,
                 )
 
                 if stream_queue.full():
                     stream_queue.get()
                 stream_queue.put(stream_frame_instance)
-                time.sleep(0.01)
+                time.sleep(1/30)
 
     except Exception as e:
         print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
@@ -38,12 +48,13 @@ def _update_frame(rtsp_url, stream_name, stream_queue, debug=False):
 
 
 class RtspStream:
-    def __init__(self, rtsp_url, manager_queue, stream_name=str(uuid.uuid4()), debug=False):
+    def __init__(self, rtsp_url, manager_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, debug=False,):
         self.rawStreamView = None
         self.rtsp_url = rtsp_url
         self.stream_name = stream_name
         self.debug=debug
         self.stream_queue = manager_queue
+        self.bypass_frame = bypass_frame
 
 
         #self.stream_queue = manager_queue.Queue(maxsize=720)
