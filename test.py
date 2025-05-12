@@ -192,7 +192,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             if outputs[0] is not None:  #인간만 추출
                 mask = outputs[0][:, 6] == 0
                 outputs[0] = outputs[0][mask]
-            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre) #박스 그리기
+            result_frame = predictor.visual_from_detection_numpy(outputs[0], img_info, predictor.confthre) #박스 그리기
             if args.save_result:
                 #pass
                 #vid_writer.write(result_frame) #파일로 저장

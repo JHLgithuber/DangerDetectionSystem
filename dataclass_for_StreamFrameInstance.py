@@ -11,9 +11,12 @@ class StreamFrameInstance:
     row_frame_bytes: bytes
     height: int
     width: int
+    bypass_flag: bool = False
 
     human_detection_numpy: numpy = None
     human_detection_tsize: int = 640
+
+    human_tracking_serial: list = None
 
     # 해당 프레임의 정보 이것 저것 라벨링 이라던가?
 
