@@ -2,18 +2,27 @@ import argparse
 import sys
 import time
 import uuid
-from multiprocessing import Manager
+from multiprocessing import Manager, shared_memory
 from threading import Thread
-
+from itertools import count
 import av
 import numpy as np
 
 import demo_viewer
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
+counter = count()
 
 
-def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=5,):
+def _save_frame_to_shared_memory(frame):
+    name = str(next(counter))
+    shm = shared_memory.SharedMemory(name=name, create=True, size=frame.nbytes)
+    shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
+    shm_arr[:] = frame[:]
+    frame_info={"name": name, "shape": frame.shape, "dtype": str(frame.dtype)}
+    return frame_info
+
+def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=0,):
     try:
         print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
         container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
@@ -31,7 +40,7 @@ def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=
 
                 stream_frame_instance = StreamFrameInstance(
                     stream_name=stream_name,
-                    row_frame_bytes=raw_stream_view.tobytes(),
+                    frame_info=_save_frame_to_shared_memory(raw_stream_view),
                     height=raw_stream_view.shape[0],
                     width=raw_stream_view.shape[1],
                     bypass_flag=bypass_flag,

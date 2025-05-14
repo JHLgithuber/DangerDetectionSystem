@@ -10,9 +10,11 @@ from loguru import logger
 import cv2
 import torch
 import numpy as np
+
+import dataclass_for_StreamFrameInstance
 import demo_viewer
 import queue
-from multiprocessing import Queue, Process, Manager
+from multiprocessing import Queue, Process, Manager, shared_memory
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
@@ -136,6 +138,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
     waiting_instance_dict = dict()
+
     for _ in range(worker_num):
         infrence_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object))
         infrence_worker_process.daemon = True
@@ -153,7 +156,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                     waiting_instance_dict[instance_id] = stream_frame_instance
 
                     # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
-                    frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
+                    frame=dataclass_for_StreamFrameInstance.load_frame_to_shared_memory(stream_frame_instance.frame_info)
                     frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
 
                     # 추론 수행
@@ -183,9 +186,6 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
 def main(exp, args, stream_queue, return_queue):
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
-
-    file_name = os.path.join(exp.output_dir, args.experiment_name)
-    os.makedirs(file_name, exist_ok=True)
 
     logger.info("Args: {}".format(args))
 
@@ -236,8 +236,8 @@ def get_args():
         exp_file=None,
         ckpt="yolox_s.pth",
         device="gpu",
-        conf=0.25,
-        nms=0.45,
+        conf=0.45,  #신뢰도
+        nms=0.65,   #클수록 겹치는 바운딩박스 제거
         tsize=640,
         fp16=False,
         legacy=False,
@@ -280,6 +280,7 @@ if __name__ == "__main__":
         #                        stream_name="TEST_7", debug=debugMode),
         #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv076.stream", manager_queue=stream_queue,
         #                        stream_name="TEST_8", debug=debugMode),
-        stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue,
-                                stream_name="TEST_9", debug=debugMode), ]
+        #stream_input.RtspStream(rtsp_url="rtsp://210.99.70.120:1935/live/cctv077.stream", manager_queue=stream_queue,
+        #                        stream_name="TEST_9", debug=debugMode),
+        ]
     detector_process.join()

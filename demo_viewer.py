@@ -10,7 +10,7 @@ from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
 def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
-    frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
+    frame =dataclass_for_StreamFrameInstance.load_frame_to_shared_memory(stream_frame_instance.frame_info)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
@@ -32,7 +32,7 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
 
 def visual_from_tracking_serial(stream_frame_instance, cls_conf=0.35):
     # 프레임 복원
-    frame = np.frombuffer(stream_frame_instance.row_frame_bytes, dtype=np.uint8)
+    frame =dataclass_for_StreamFrameInstance.load_frame_to_shared_memory(stream_frame_instance.frame_info)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     output = frame.copy()
     serialized_tracks = stream_frame_instance.human_tracking_serial
@@ -74,7 +74,7 @@ def _update_imshow_process(stream_queue_for_process):
                     result_frame = visual_from_detection_numpy(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
 
                 else:
-                    result_frame = np.frombuffer(instances_per_frame_instance.row_frame_bytes, dtype=np.uint8)
+                    result_frame = dataclass_for_StreamFrameInstance.load_frame_to_shared_memory(instances_per_frame_instance.frame_info)
                     result_frame = result_frame.reshape(
                         (instances_per_frame_instance.height, instances_per_frame_instance.width, 3))
 
