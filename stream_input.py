@@ -2,27 +2,20 @@ import argparse
 import sys
 import time
 import uuid
-from multiprocessing import Manager, shared_memory
+from multiprocessing import Manager
+import dataclass_for_StreamFrameInstance
 from threading import Thread
-from itertools import count
+
 import av
 import numpy as np
 
 import demo_viewer
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
-counter = count()
 
 
-def _save_frame_to_shared_memory(frame):
-    name = str(next(counter))
-    shm = shared_memory.SharedMemory(name=name, create=True, size=frame.nbytes)
-    shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
-    shm_arr[:] = frame[:]
-    frame_info={"name": name, "shape": frame.shape, "dtype": str(frame.dtype)}
-    return frame_info
 
-def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=0,):
+def _update_frame(rtsp_url, stream_name, stream_smm, metadata_queue, debug=False, bypass_frame=0,):
     try:
         print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
         container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
@@ -40,15 +33,15 @@ def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=
 
                 stream_frame_instance = StreamFrameInstance(
                     stream_name=stream_name,
-                    frame_info=_save_frame_to_shared_memory(raw_stream_view),
+                    frame_info=dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(raw_stream_view, smm=stream_smm, debug=debug),
                     height=raw_stream_view.shape[0],
                     width=raw_stream_view.shape[1],
                     bypass_flag=bypass_flag,
                 )
 
-                if stream_queue.full():
-                    stream_queue.get()
-                stream_queue.put(stream_frame_instance)
+                if metadata_queue.full():
+                    metadata_queue.get()
+                metadata_queue.put(stream_frame_instance)
                 time.sleep(1/30)
 
     except Exception as e:
@@ -57,30 +50,31 @@ def _update_frame(rtsp_url, stream_name, stream_queue,debug=False, bypass_frame=
 
 
 class RtspStream:
-    def __init__(self, rtsp_url, manager_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, debug=False,):
+    def __init__(self, rtsp_url, manager_smm, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, debug=False,):
         self.rawStreamView = None
         self.rtsp_url = rtsp_url
         self.stream_name = stream_name
         self.debug=debug
-        self.stream_queue = manager_queue
+        self.manager_smm = manager_smm
+        self.metadata_queue = metadata_queue
         self.bypass_frame = bypass_frame
 
 
         #self.stream_queue = manager_queue.Queue(maxsize=720)
         self.stream_thread = Thread(target=_update_frame, name=self.stream_name,
-                                      args=(self.rtsp_url, self.stream_name, self.stream_queue, self.debug))
+                                      args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue, self.debug, self.bypass_frame,))
         self.stream_thread.daemon = True
         self.stream_thread.start()
 
     def get_stream_name(self):
         return self.stream_name
 
-    def get_stream_queue(self):
-        return self.stream_queue
+    def get_metadata_queue(self):
+        return self.metadata_queue
 
     def __del__(self):
         if self.stream_thread.is_alive():
-            self.stream_queue.put(None)
+            self.metadata_queue.put(None)
             self.stream_thread.join()
 
 

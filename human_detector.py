@@ -156,7 +156,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                     waiting_instance_dict[instance_id] = stream_frame_instance
 
                     # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
-                    frame=dataclass_for_StreamFrameInstance.load_frame_to_shared_memory(stream_frame_instance.frame_info)
+                    frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance.frame_info, debug=True)
                     frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
 
                     # 추론 수행
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     args = get_args()
     exp = get_exp(args.exp_file, args.name)
 
-    debugMode = False
+    debugMode = True
     # showMode=True
     stream_queue = Manager().Queue(maxsize=128)
     return_queue = Manager().Queue(maxsize=128)

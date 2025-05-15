@@ -4,9 +4,11 @@ from typing import Dict, List, Optional, Any, Union
 import time
 import numpy as np
 from multiprocessing import shared_memory
+from multiprocessing.managers import SharedMemoryManager
 from queue import Queue
 import heapq
 from collections import defaultdict
+from itertools import count
 
 @dataclass
 class StreamFrameInstance:
@@ -36,27 +38,44 @@ class StreamFrameInstance:
             # 종료 과정에서 발생하는 예외는 무시
             pass
 
+def save_frame_to_shared_memory(frame, smm, debug=False):
+    try:
+        shm = smm.SharedMemory(size=frame.nbytes)
+        shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
+        shm_arr[:] = frame[:]
+        shm_frame_info={"name": shm.name, "shape": frame.shape, "dtype": str(frame.dtype)}
+        if debug: print(f"save {shm.name} to shared memory")
+        return shm_frame_info
+    except Exception as e:
+        print(e)
+        return None
 
-def load_frame_to_shared_memory(frame_info):
+
+def load_frame_from_shared_memory(stream_frame_instance, smm, pop=False, debug=False):
     """공유 메모리에서 프레임을 로드합니다."""
+    frame_info = stream_frame_instance.frame_info
     try:
         if not frame_info or 'name' not in frame_info:
-            return None
+            raise Exception
         
-        shm = shared_memory.SharedMemory(name=frame_info['name'], create=False)
+        print(frame_info)
+        shm = smm.SharedMemory(name=frame_info['name'])
         shape = frame_info['shape']
         dtype = np.dtype(frame_info['dtype'])
         
         # 공유 메모리에서 배열 생성 (복사 없이)
         array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+        print(array)
+        frame=array.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
         
-        # 데이터 복사본 만들기 (공유 메모리 의존성 제거)
-        result = np.copy(array)
+        if pop:
+            shm.close()
+            shm.unlink()
+            if debug: print(f"pop {frame_info['name']} frame to shared memory")
+
+        elif debug: print(f"load {frame_info['name']} frame to shared memory")
         
-        # 사용 후 공유 메모리 연결 해제 (삭제하지 않음)
-        shm.close()
-        
-        return result
+        return frame
     except Exception as e:
         print(f"공유 메모리 로드 중 오류: {e}")
         return None
