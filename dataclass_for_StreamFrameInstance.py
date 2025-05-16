@@ -44,6 +44,7 @@ def save_frame_to_shared_memory(frame, smm, debug=False):
         shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
         shm_arr[:] = frame[:]
         shm_frame_info={"name": shm.name, "shape": frame.shape, "dtype": str(frame.dtype)}
+        time.sleep(1)
         if debug: print(f"save {shm.name} to shared memory")
         return shm_frame_info
     except Exception as e:
@@ -53,13 +54,14 @@ def save_frame_to_shared_memory(frame, smm, debug=False):
 
 def load_frame_from_shared_memory(stream_frame_instance, smm, pop=False, debug=False):
     """공유 메모리에서 프레임을 로드합니다."""
+    if debug: print(f"[DEBUG] load_frame_from_shared_memory")
     frame_info = stream_frame_instance.frame_info
     try:
         if not frame_info or 'name' not in frame_info:
-            raise Exception
-        
+            raise ValueError("Frame info or name missing.")
+
         print(frame_info)
-        shm = smm.SharedMemory(name=frame_info['name'])
+        shm = shared_memory.SharedMemory(name=frame_info['name'])
         shape = frame_info['shape']
         dtype = np.dtype(frame_info['dtype'])
         

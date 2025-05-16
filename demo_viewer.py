@@ -58,7 +58,9 @@ def visual_from_tracking_serial(stream_frame_instance, stream_smm, cls_conf=0.35
 
 
 
-def _update_imshow_process(stream_queue_for_process, stream_smm, debug=False):
+def _update_imshow_process(stream_queue_for_process, debug=False):
+    stream_smm=SharedMemoryManager()
+    stream_smm.start()
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
@@ -85,12 +87,15 @@ def _update_imshow_process(stream_queue_for_process, stream_smm, debug=False):
             if cv2.waitKey(2) & 0xFF == ord('q'):
                 break
         cv2.destroyAllWindows()
+        stream_smm.shutdown()
         return
     except Exception as e:
         cv2.destroyAllWindows()
+        stream_smm.shutdown()
         print(f"\nDEMO VIEWER of {stream_name} is KILL by {e}")
     except KeyboardInterrupt:
         cv2.destroyAllWindows()
+        stream_smm.shutdown()
         print(f"DEMO VIEWER of {stream_name} is END by KeyboardInterrupt")
         return
 
@@ -100,8 +105,7 @@ stream_viewer_process_set = set()
 
 
 def _show_imshow_demo(stream_queue,  debug=False):
-    stream_smm=SharedMemoryManager()
-    stream_smm.start()
+
     try:
         #sorted_instance=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue, buffer_size=100)
         print("[INFO] imshow demo start")
@@ -112,8 +116,8 @@ def _show_imshow_demo(stream_queue,  debug=False):
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
-                process = Process(target=_update_imshow_process, args=(stream_viewer_queue_dict[stream_name], stream_smm, debug))
-                process.daemon = True
+                process = Process(target=_update_imshow_process, args=(stream_viewer_queue_dict[stream_name], debug))
+                #process.daemon = True
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
