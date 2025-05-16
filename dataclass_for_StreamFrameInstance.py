@@ -22,21 +22,22 @@ class StreamFrameInstance:
     human_tracking_serial: Optional[List[Dict[str, Any]]] = None
     bypass_flag: bool = False
     
-    def __del__(self):
-        """객체가 파괴될 때 자동으로 호출되어 공유 메모리를 정리합니다."""
-        try:
-            # 공유 메모리 해제 시도
-            if hasattr(self, 'frame_info') and self.frame_info and 'name' in self.frame_info:
-                try:
-                    shm = shared_memory.SharedMemory(name=self.frame_info['name'], create=False)
-                    shm.close()
-                    shm.unlink()  # 참조 카운트를 적절히 관리하기 위해 조심해서 사용
-                except Exception as e:
-                    # 이미 해제되었거나 다른 프로세스가 사용 중인 경우 무시
-                    pass
-        except Exception:
-            # 종료 과정에서 발생하는 예외는 무시
-            pass
+#    def __del__(self):
+#        """객체가 파괴될 때 자동으로 호출되어 공유 메모리를 정리합니다."""
+#        try:
+#            # 공유 메모리 해제 시도
+#            print(f"[INFO] {self.stream_name} frame instance is deleted")
+#            if hasattr(self, 'frame_info') and self.frame_info and 'name' in self.frame_info:
+#                try:
+#                    shm = shared_memory.SharedMemory(name=self.frame_info['name'], create=False)
+#                    shm.close()
+#                    shm.unlink()  # 참조 카운트를 적절히 관리하기 위해 조심해서 사용
+#                except Exception as e:
+#                    # 이미 해제되었거나 다른 프로세스가 사용 중인 경우 무시
+#                    pass
+#        except Exception:
+#            # 종료 과정에서 발생하는 예외는 무시
+#            pass
 
 def save_frame_to_shared_memory(frame, smm, debug=False):
     try:
@@ -44,6 +45,7 @@ def save_frame_to_shared_memory(frame, smm, debug=False):
         shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
         shm_arr[:] = frame[:]
         shm_frame_info={"name": shm.name, "shape": frame.shape, "dtype": str(frame.dtype)}
+        shm.close()
         time.sleep(1)
         if debug: print(f"save {shm.name} to shared memory")
         return shm_frame_info
@@ -71,8 +73,8 @@ def load_frame_from_shared_memory(stream_frame_instance, smm, pop=False, debug=F
         frame=array.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
         
         if pop:
-            shm.close()
-            shm.unlink()
+            #shm.close()
+            #shm.unlink()
             if debug: print(f"pop {frame_info['name']} frame to shared memory")
 
         elif debug: print(f"load {frame_info['name']} frame to shared memory")

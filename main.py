@@ -10,12 +10,9 @@ from demo_viewer import start_imshow_demo
 def main(url_list, debug_mode=True, show_mode=True,):
     #초기화
     frame_smm = SharedMemoryManager()
-    frame_smm.start(
-
-    #스트림 입력
-    )
+    frame_smm.start()
     input_metadata_queue = Queue()
-    stram_instance_list=[]
+    stram_instance_list=list()
     for name, url in url_list:
         print(f"name: {name}, url: {url}")
         stram_instance_list.append(RtspStream(rtsp_url=url, manager_smm=frame_smm, metadata_queue=input_metadata_queue ,stream_name=name, debug=debug_mode))
@@ -23,10 +20,10 @@ def main(url_list, debug_mode=True, show_mode=True,):
 
     #스트림 출력
     output_metadata_queue = Queue()
+    output_stream_thread_list=list()
     if show_mode:
         print(f"show_mode is {show_mode}")
-
-        start_imshow_demo(stream_queue=output_metadata_queue, debug=debug_mode)
+        output_stream_thread_list.append(start_imshow_demo(stream_queue=output_metadata_queue, debug=debug_mode))
     while True:
         output_metadata_queue.put(input_metadata_queue.get())
         if debug_mode:
