@@ -2,8 +2,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 import time
+
+import cv2
 import numpy as np
 from multiprocessing import shared_memory
+from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.managers import SharedMemoryManager
 from queue import Queue
 import heapq
@@ -13,7 +16,8 @@ from itertools import count
 @dataclass
 class StreamFrameInstance:
     stream_name: str
-    frame_info: Dict[str, Any]  # 공유 메모리 정보 (name, shape, dtype)
+    frame_index: int
+    memory_name:str
     height: int
     width: int
     captured_datetime: datetime = field(default_factory=datetime.now)
@@ -39,47 +43,33 @@ class StreamFrameInstance:
 #            # 종료 과정에서 발생하는 예외는 무시
 #            pass
 
-def save_frame_to_shared_memory(frame, smm, debug=False):
+def save_frame_to_shared_memory(frame, shm_name, debug=False):
     try:
-        shm = smm.SharedMemory(size=frame.nbytes)
-        shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
-        shm_arr[:] = frame[:]
-        shm_frame_info={"name": shm.name, "shape": frame.shape, "dtype": str(frame.dtype)}
-        shm.close()
-        time.sleep(1)
+        shm = SharedMemory(name=shm_name)
+        buffer=np.ndarray(frame.shape, dtype=np.uint8, buffer=shm.buf)
+
+        # 버퍼에 복사
+        np.copyto(buffer, frame)
         if debug: print(f"save {shm.name} to shared memory")
-        return shm_frame_info
+        return shm_name
     except Exception as e:
         print(e)
         return None
 
 
-def load_frame_from_shared_memory(stream_frame_instance, smm, pop=False, debug=False):
+def load_frame_from_shared_memory(stream_frame_instance, debug=False):
     """공유 메모리에서 프레임을 로드합니다."""
     if debug: print(f"[DEBUG] load_frame_from_shared_memory")
-    frame_info = stream_frame_instance.frame_info
+    memory_name = stream_frame_instance.memory_name
     try:
-        if not frame_info or 'name' not in frame_info:
-            raise ValueError("Frame info or name missing.")
+        print(memory_name)
+        shm = shared_memory.SharedMemory(name=memory_name)
+        shape = stream_frame_instance.height, stream_frame_instance.width, 3
+        buffer = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()
+        if debug: print(f"load {stream_frame_instance.stream_name} frame to shared memory")
+        return buffer
+        
 
-        print(frame_info)
-        shm = shared_memory.SharedMemory(name=frame_info['name'])
-        shape = frame_info['shape']
-        dtype = np.dtype(frame_info['dtype'])
-        
-        # 공유 메모리에서 배열 생성 (복사 없이)
-        array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
-        print(array)
-        frame=array.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
-        
-        if pop:
-            #shm.close()
-            #shm.unlink()
-            if debug: print(f"pop {frame_info['name']} frame to shared memory")
-
-        elif debug: print(f"load {frame_info['name']} frame to shared memory")
-        
-        return frame
     except Exception as e:
         print(f"공유 메모리 로드 중 오류: {e}")
         return None

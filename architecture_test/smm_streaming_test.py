@@ -3,20 +3,7 @@ from multiprocessing import Process, Queue
 from multiprocessing.managers import SharedMemoryManager
 import numpy as np
 
-def save_frame_to_shared_memory(frame: np.ndarray, smm: SharedMemoryManager):
-    shm = smm.SharedMemory(size=frame.nbytes)
-    shm_arr = np.ndarray(frame.shape, dtype=frame.dtype, buffer=shm.buf)
-    shm_arr[:] = frame[:]
-    return {"name": shm.name, "shape": frame.shape, "dtype": frame.dtype.str}
 
-def load_frame_from_shared_memory(frame_info):
-    from multiprocessing import shared_memory
-    shm = shared_memory.SharedMemory(name=frame_info['name'])
-    dtype = np.dtype(frame_info['dtype'])
-    arr = np.ndarray(frame_info['shape'], dtype=dtype, buffer=shm.buf)
-    frame = arr.copy()
-    shm.close()
-    return frame
 
 def producer(smm, queue):
     frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)

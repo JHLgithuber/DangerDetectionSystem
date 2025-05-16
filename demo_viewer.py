@@ -11,7 +11,7 @@ from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
 def visual_from_detection_numpy(stream_frame_instance, stream_smm, cls_conf=0.35):
-    frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, stream_smm, pop=True, debug=True)
+    frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
@@ -33,7 +33,7 @@ def visual_from_detection_numpy(stream_frame_instance, stream_smm, cls_conf=0.35
 
 def visual_from_tracking_serial(stream_frame_instance, stream_smm, cls_conf=0.35):
     # 프레임 복원
-    frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, stream_smm, pop=True, debug=True)
+    frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     output = frame.copy()
     serialized_tracks = stream_frame_instance.human_tracking_serial
@@ -56,11 +56,22 @@ def visual_from_tracking_serial(stream_frame_instance, stream_smm, cls_conf=0.35
 
     return output
 
+def demo_viewer(stream_name, frame, debug=False):
+    try:
+        if frame is None or not isinstance(frame, np.ndarray):
+            print(f"[ERROR] {stream_name}: 유효하지 않은 프레임")
+
+        if frame.size == 0:
+            print(f"[ERROR] {stream_name}: 빈 프레임")
+
+        if debug: print(f"[DEBUG] {stream_name}: 프레임 shape: {frame.shape}, dtype: {frame.dtype}")
+        cv2.imshow(stream_name, frame)
+
+    except Exception as e:
+        print(f"[ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 
 def _update_imshow_process(stream_queue_for_process, debug=False):
-    stream_smm=SharedMemoryManager()
-    stream_smm.start()
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
@@ -72,40 +83,37 @@ def _update_imshow_process(stream_queue_for_process, debug=False):
             if instances_per_frame_instance is not None:
                 if instances_per_frame_instance.human_tracking_serial is not None:
                     print(f"[INFO] {stream_name} instances_per_frame is not None")
-                    result_frame = visual_from_tracking_serial(stream_frame_instance=instances_per_frame_instance, stream_smm=stream_smm, cls_conf=0.35)
+                    result_frame = visual_from_tracking_serial(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
 
                 elif instances_per_frame_instance.human_detection_numpy is not None:
-                    result_frame = visual_from_detection_numpy(stream_frame_instance=instances_per_frame_instance, stream_smm=stream_smm, cls_conf=0.35)
+                    result_frame = visual_from_detection_numpy(stream_frame_instance=instances_per_frame_instance, cls_conf=0.35)
 
                 else:
-                    result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(instances_per_frame_instance, stream_smm, pop=True, debug=True)
+                    result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(instances_per_frame_instance, debug=True)
 
-                cv2.imshow(stream_name, result_frame)
+                demo_viewer(stream_name, result_frame, debug=debug)
             else:
                 print(f"[INFO] {stream_name} instances_per_frame is None")
 
             if cv2.waitKey(2) & 0xFF == ord('q'):
                 break
         cv2.destroyAllWindows()
-        stream_smm.shutdown()
         return
     except Exception as e:
         cv2.destroyAllWindows()
-        stream_smm.shutdown()
         print(f"\nDEMO VIEWER of {stream_name} is KILL by {e}")
     except KeyboardInterrupt:
         cv2.destroyAllWindows()
-        stream_smm.shutdown()
         print(f"DEMO VIEWER of {stream_name} is END by KeyboardInterrupt")
         return
 
 
-stream_viewer_queue_dict = dict()
-stream_viewer_process_set = set()
+
 
 
 def _show_imshow_demo(stream_queue,  debug=False):
-
+    stream_viewer_queue_dict = dict()
+    stream_viewer_process_set = set()
     try:
         #sorted_instance=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue, buffer_size=100)
         print("[INFO] imshow demo start")
