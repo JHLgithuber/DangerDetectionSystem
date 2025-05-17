@@ -101,11 +101,15 @@ class RtspStream:
         self.stream_thread.start()
         return
 
+    def kill_stream(self):
+        self.__del__()
 
-def __del__(self):
+
+    def __del__(self):
         if self.stream_thread.is_alive():
             self.metadata_queue.put(None)
-            self.stream_thread.join()
+            #TODO: 파이프로 스트림종료 명시
+            #self.stream_thread.join()
 
 
 

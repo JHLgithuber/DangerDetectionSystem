@@ -21,11 +21,12 @@ from yolox.exp import get_exp
 from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
 import stream_input
+from collections import defaultdict
 
 multiprocessing.set_start_method('spawn', force=True)
 
 
-def _inference_worker(input_queue, output_queue, args, all_object=False):
+def _inference_worker(input_queue, output_queue, args, all_object=False, debug_mode=False):
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
@@ -40,9 +41,15 @@ def _inference_worker(input_queue, output_queue, args, all_object=False):
         fp16=args.fp16,
         legacy=args.legacy
     )
-
-    predictor.inference(input_queue=input_queue, output_queue=output_queue, all_object=all_object)
-
+    if debug_mode: print("predictor init")
+    try: predictor.inference(input_queue=input_queue, output_queue=output_queue, all_object=all_object, debug_mode=debug_mode)
+    except KeyboardInterrupt:
+        print("inference_worker_process END")
+        return
+    except Exception as e:
+        print(e)
+        print("inference_worker_process KILL by Exception")
+        return
 
 class Predictor(object):
     def __init__(
@@ -67,7 +74,7 @@ class Predictor(object):
         self.fp16 = fp16
         self.preproc = ValTransform(legacy=legacy)
 
-    def inference(self, input_queue, output_queue, all_object=False, batch_size=6, max_wait=0.01,):
+    def inference(self, input_queue, output_queue, all_object=False, debug_mode=False, batch_size=6, max_wait=0.01, ):
         # 실질적 추론 메서드
         batch_inputs = []
         batch_ids = []
@@ -76,13 +83,16 @@ class Predictor(object):
         while True:
             if input_queue.empty():
                 time.sleep(1/30)
+                if debug_mode: print("input_queue empty")
                 continue
             input_dict = input_queue.get()
 
             batch_inputs.append(input_dict["img"])
             batch_ids.append(input_dict["id"])
 
+            if debug_mode: print(f"input_queue get {input_dict['id']}")
             if not (len(batch_inputs) >= batch_size or (batch_inputs and time.time() - last_collect > max_wait)):
+                if debug_mode: print("not enough inputs for batch inference")
                 continue
 
             imgs = []
@@ -111,6 +121,7 @@ class Predictor(object):
             for out, fid in zip(outputs, batch_ids):
                 if out is not None:
                     out = out.cpu().clone()
+                    if debug_mode: print(f"output_queue put {fid}")
                     if not all_object:
                         mask = out[:, 6] == 0
                         out = out[mask]
@@ -120,6 +131,7 @@ class Predictor(object):
                         "infer_time": infer_time
                     })
                 else:
+                    if debug_mode: print(f"output_queue put None {fid}")
                     output_queue.put({
                         "output_numpy": None,
                         "id": fid,
@@ -133,57 +145,97 @@ class Predictor(object):
             time.sleep(0.0001)
 
 
-def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False):
-    infrence_worker_set = set()
+def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False,):
+    inference_worker_set = set()
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
     waiting_instance_dict = dict()
 
-    for _ in range(worker_num):
-        infrence_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object))
-        infrence_worker_process.daemon = True
-        infrence_worker_process.start()
-        infrence_worker_set.add(infrence_worker_process)
+    try:
+        for _ in range(worker_num):
+            inference_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+            inference_worker_process.daemon = True
+            inference_worker_process.start()
+            if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
+            inference_worker_set.add(inference_worker_process)
+    
+        while True:
+            try:
+                if not stream_queue.empty():
+                    # 큐에서 프레임 객체 꺼내기
+                    stream_frame_instance = stream_queue.get()
+                    if stream_frame_instance.bypass_flag is False:
+                        instance_id = stream_frame_instance.stream_name +'-'+ stream_frame_instance.captured_datetime.strftime(
+                            "%Y%m%d%H%M%S%f")
+                        waiting_instance_dict[instance_id] = stream_frame_instance
+                        frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
+                        input_queue.put({"img": frame, "id": instance_id})
+                        if debug_mode: print(f"input_queue put {instance_id}")
+                    elif stream_frame_instance.bypass_flag is True:
+                        return_queue.put(stream_frame_instance)
+    
+    
+                if not output_queue.empty():
+                    # 결과를 정렬하기 위한 버퍼 딕셔너리 (스트림별로 관리)
+                    stream_buffers = defaultdict(list)
+                    buffer_size = 100  # 버퍼 크기
+                    
+                    # 현재 가능한 결과들 수집
+                    while not output_queue.empty():
+                        try:
+                            output_dict = output_queue.get_nowait()
+                            if output_dict["id"] in waiting_instance_dict:
+                                inst = waiting_instance_dict[output_dict["id"]]
+                                stream_name = inst.stream_name
+                                stream_buffers[stream_name].append((inst.captured_datetime, output_dict))
+                                
+                                # 버퍼가 너무 커지면 가장 오래된 것부터 처리
+                                if len(stream_buffers[stream_name]) >= buffer_size // 10:
+                                    # 시간순 정렬
+                                    stream_buffers[stream_name].sort(key=lambda x: x[0])
+                                    # 가장 오래된 프레임 처리
+                                    _, oldest_output = stream_buffers[stream_name].pop(0)
+                                    
+                                    if return_queue.full():
+                                        return_queue.get()
+                                    output_frame_instance = waiting_instance_dict.pop(oldest_output["id"])
+                                    output_frame_instance.human_detection_numpy = oldest_output["output_numpy"]
+                                    return_queue.put(output_frame_instance)
+                                    if debug_mode: 
+                                        print(f"return_queue put {oldest_output['id']} at {output_frame_instance.captured_datetime}")
+                                        
+                        except queue.Empty:
+                            break
+                    
+                    # 남은 버퍼 처리
+                    for stream_name, buffer in stream_buffers.items():
+                        if buffer:
+                            buffer.sort(key=lambda x: x[0])
+                            for _, output_dict in buffer:
+                                if return_queue.full():
+                                    return_queue.get()
+                                output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
+                                output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
+                                return_queue.put(output_frame_instance)
+                                if debug_mode: 
+                                    print(f"return_queue put {output_dict['id']} at {output_frame_instance.captured_datetime}")
 
-    while True:
-        try:
-            if not stream_queue.empty():
-                # 큐에서 프레임 객체 꺼내기
-                stream_frame_instance = stream_queue.get(timeout=1/30)
-                if stream_frame_instance.bypass_flag is False:
-                    instance_id = stream_frame_instance.stream_name + stream_frame_instance.captured_datetime.strftime(
-                        "%Y%m%d%H%M%S%f")
-                    waiting_instance_dict[instance_id] = stream_frame_instance
-
-                    # 바이트 데이터를 NumPy 배열로 변환 (OpenCV 형식으로 복원)
-                    frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance.frame_info, debug=True)
-                    frame = frame.reshape(stream_frame_instance.height, stream_frame_instance.width, 3)
-
-                    # 추론 수행
-                    input_queue.put({"img": frame, "id": instance_id})
-                elif stream_frame_instance.bypass_flag is True:
-                    return_queue.put(stream_frame_instance)
+                time.sleep(1/30)
+    
+    
+            except queue.Empty:
+                continue
+    
+    finally:
+        for inference_worker_process in inference_worker_set:
+            inference_worker_process.terminate()
+            inference_worker_process.join()
+        logger.info("inference_worker_process terminated")
+        logger.info("input_queue closed")
+    
 
 
-            if not output_queue.empty():
-                output_dict = output_queue.get()
-                if output_dict["id"] in waiting_instance_dict:
-                    if return_queue.full():
-                        return_queue.get()
-                    output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
-                    output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
-                    return_queue.put(output_frame_instance)
-                else:
-                    logger.info("output_dict id not found")
-
-            time.sleep(1/30)
-
-
-        except queue.Empty:
-            continue
-
-
-def main(exp, args, stream_queue, return_queue):
+def main(exp, args, stream_queue, return_queue, debug_mode=False):
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
 
@@ -219,7 +271,7 @@ def main(exp, args, stream_queue, return_queue):
 
     imageflow_demo_process = Process(
         target=imageflow_demo,
-        args=(predictor, args, stream_queue, return_queue, 4, True)
+        args=(predictor, args, stream_queue, return_queue, 4, True, debug_mode)
     )
     imageflow_demo_process.daemon = False
     return imageflow_demo_process

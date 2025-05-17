@@ -44,35 +44,46 @@ class StreamFrameInstance:
 #            pass
 
 def save_frame_to_shared_memory(frame, shm_name, debug=False):
+    shm = None
     try:
         shm = SharedMemory(name=shm_name)
         buffer=np.ndarray(frame.shape, dtype=np.uint8, buffer=shm.buf)
-
-        # 버퍼에 복사
         np.copyto(buffer, frame)
+        shm.close()
         if debug: print(f"save {shm.name} to shared memory")
         return shm_name
     except Exception as e:
         print(e)
         return None
+    finally:
+        shm.close()
 
 
 def load_frame_from_shared_memory(stream_frame_instance, debug=False):
     """공유 메모리에서 프레임을 로드합니다."""
-    if debug: print(f"[DEBUG] load_frame_from_shared_memory")
+    if debug: 
+        print(f"[DEBUG] load_frame_from_shared_memory")
     memory_name = stream_frame_instance.memory_name
+    shm = None
     try:
         print(memory_name)
         shm = shared_memory.SharedMemory(name=memory_name)
-        shape = stream_frame_instance.height, stream_frame_instance.width, 3
-        buffer = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()
-        if debug: print(f"load {stream_frame_instance.stream_name} frame to shared memory")
-        return buffer
-        
+        shape = (stream_frame_instance.height, stream_frame_instance.width, 3)
+        # 즉시 복사하여 새로운 버퍼 생성
+        frame = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()
+        shm.close()
+        if debug: 
+            print(f"load {stream_frame_instance.stream_name} frame from shared memory")
+        return frame
 
     except Exception as e:
         print(f"공유 메모리 로드 중 오류: {e}")
         return None
+        
+    finally:
+        # 항상 공유 메모리 연결을 닫습니다
+        if shm is not None:
+            shm.close()
 
 
 def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=100):

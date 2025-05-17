@@ -10,7 +10,7 @@ import dataclass_for_StreamFrameInstance
 from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
-def visual_from_detection_numpy(stream_frame_instance, stream_smm, cls_conf=0.35):
+def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
@@ -31,7 +31,7 @@ def visual_from_detection_numpy(stream_frame_instance, stream_smm, cls_conf=0.35
     vis_res = vis(row_img, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # 프레임에 결과 그려줌
     return vis_res
 
-def visual_from_tracking_serial(stream_frame_instance, stream_smm, cls_conf=0.35):
+def visual_from_tracking_serial(stream_frame_instance, cls_conf=0.35):
     # 프레임 복원
     frame =dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
@@ -77,6 +77,7 @@ def _update_imshow_process(stream_queue_for_process, debug=False):
     try:
         cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
         cv2.resizeWindow(stream_name, 800, 600)
+
         while True:
             instances_per_frame_instance = stream_queue_for_process.get()
             if debug: print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
@@ -94,6 +95,7 @@ def _update_imshow_process(stream_queue_for_process, debug=False):
                 demo_viewer(stream_name, result_frame, debug=debug)
             else:
                 print(f"[INFO] {stream_name} instances_per_frame is None")
+                break
 
             if cv2.waitKey(2) & 0xFF == ord('q'):
                 break
@@ -133,12 +135,16 @@ def _show_imshow_demo(stream_queue,  debug=False):
             time.sleep(0.001)
 
     except KeyboardInterrupt:
+        print("\nDEMO VIEWER is END by KeyboardInterrupt")
+
+    except Exception as e:
+        print(f"\nDEMO VIEWER is KILL by {e}")
+
+    finally:
         for viewer in stream_viewer_process_set:
             viewer.terminate()
             viewer.join()
-        return
-    except Exception as e:
-        print(f"\nDEMO VIEWER is KILL by {e}")
+            print(f"[INFO] {viewer.name} is terminated.")
 
 
 def start_imshow_demo(stream_queue, debug=False,):
