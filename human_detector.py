@@ -142,7 +142,7 @@ class Predictor(object):
             batch_inputs.clear()
             batch_ids.clear()
             last_collect = time.time()
-            time.sleep(0.0001)
+            #time.sleep(0.0001)
 
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False,):
@@ -178,7 +178,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                 if not output_queue.empty():
                     # 결과를 정렬하기 위한 버퍼 딕셔너리 (스트림별로 관리)
                     stream_buffers = defaultdict(list)
-                    buffer_size = 100  # 버퍼 크기
+                    buffer_size = 1000  # 버퍼 크기
                     
                     # 현재 가능한 결과들 수집
                     while not output_queue.empty():
@@ -219,8 +219,6 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                                 return_queue.put(output_frame_instance)
                                 if debug_mode: 
                                     print(f"return_queue put {output_dict['id']} at {output_frame_instance.captured_datetime}")
-
-                time.sleep(1/30)
     
     
             except queue.Empty:

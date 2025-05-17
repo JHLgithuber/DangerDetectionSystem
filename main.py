@@ -15,12 +15,12 @@ def get_args():
     hard_args = argparse.Namespace(
         demo="video",
         experiment_name=None,
-        name="yolox-x",
+        name="yolox-s",
         path="streetTestVideo.mp4",
         camid=0,
         show_result=True,
         exp_file=None,
-        ckpt="yolox_x.pth",
+        ckpt="yolox_s.pth",
         device="gpu",
         conf=0.45,  #신뢰도
         nms=0.65,   #클수록 겹치는 바운딩박스 제거
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream"),
         ("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream"),
         ("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream"),
-        #("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream"),
+        ("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream"),
         #("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream"),
         #("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream"),
         #("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream"),

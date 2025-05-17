@@ -107,7 +107,7 @@ def _update_imshow_process(stream_queue_for_process, debug=False):
             delta = datetime.now() - instances_per_frame_instance.captured_datetime
             latency_s = int(delta.total_seconds())
             latency_us = int(delta.total_seconds() * 1_000_000)
-            cv2.displayOverlay(stream_name, f"Latency is {latency_us} µs, about {latency_s} seconds", 2000)
+            cv2.displayOverlay(stream_name, f"Latency is {latency_us:08d} µs, about {latency_s} seconds", 2000)
             cv2.waitKey(1)
         cv2.destroyAllWindows()
         return
@@ -139,7 +139,7 @@ def _show_imshow_demo(stream_queue, debug=False):
                 process.start()
                 time.sleep(0.001)
             stream_viewer_queue_dict[stream_name].put(stream)
-            time.sleep(0.001)
+            #time.sleep(0.001)
 
     except KeyboardInterrupt:
         print("\nDEMO VIEWER is END by KeyboardInterrupt")
