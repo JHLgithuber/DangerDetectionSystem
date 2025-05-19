@@ -130,7 +130,7 @@ class PoseDetector:
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             num_poses=num_poses,
-            output_segmentation_masks=True)
+            output_segmentation_masks=False)
         self.detector = vision.PoseLandmarker.create_from_options(options)
         self.debug = debug
         self.current_process_name = current_process_name
@@ -140,11 +140,12 @@ class PoseDetector:
         crop_object_images = crop_objects(stream_frame_instance)
         pose_landmarker_results = list()
         crop_object_img=None
+        pose_demo_name="DRAWED IMAGE of ERROR"
+        if debug:
+            pose_demo_name=f"DRAWED IMAGE of {self.current_process_name}"
+            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
+
         for crop_object_img in crop_object_images:
-            if debug:
-                cv2.imshow(f"CROPPED IMAGE of {self.current_process_name}", crop_object_img['crop'])
-                cv2.waitKey(1)
-        
             # 이미지가 올바른 형식인지 확인하고 변환
             image_data = np.ascontiguousarray(crop_object_img['crop'])
             if image_data.dtype != np.uint8:
@@ -157,13 +158,18 @@ class PoseDetector:
             detection_result = self.detector.detect(mp_image)
             if debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
-            res=detection_result.pose_landmarks
-            if res: pose_landmarker_results.append(detection_result.pose_landmarks)
+
+            if debug:
+                annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'])
+                cv2.imshow(pose_demo_name, annotated_image)
+                cv2.waitKey(1)
+
+            if detection_result: pose_landmarker_results.append(detection_result)
             else: pose_landmarker_results.append([])
         return pose_landmarker_results
 
 
-def draw_world_landmarks_with_coordinates(rgb_image, detection_result):
+def draw_world_landmarks_with_coordinates(detection_result, rgb_image,):
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
     # 3D 월드 랜드마크 리스트 (list of list)
@@ -174,7 +180,12 @@ def draw_world_landmarks_with_coordinates(rgb_image, detection_result):
 
     # 둘 중 하나라도 없으면 원본 반환
     if not pixel_landmarks_list or not world_landmarks_list:
+        cv2.putText(annotated_image, "Fail", (1, 11),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
         return annotated_image
+
+    cv2.putText(annotated_image, "Success", (1, 11),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
     # 인물(사람)별로 순회
     for idx in range(len(pixel_landmarks_list)):
@@ -203,9 +214,9 @@ def draw_world_landmarks_with_coordinates(rgb_image, detection_result):
             coord_text = f"({lm3d.x:.2f}m, {lm3d.y:.2f}m, {lm3d.z:.2f}m)"
             # 검은 테두리
             cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), 2)
             # 흰 글씨
             cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
     return annotated_image

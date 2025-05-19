@@ -41,9 +41,9 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
     try:#입력 스트림 초기화
         input_metadata_queue = Queue()
-        for name, url in url_list:
+        for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
-            stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, debug=debug_mode)
+            stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, is_file=is_file, debug=debug_mode)
 
 
         #공유메모리 설정
@@ -127,15 +127,16 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         #("LocalHost", "rtsp://localhost:8554/stream"),
-        ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream"),
-        #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream"),
-        #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream"),
-        #("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream"),
-        #("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream"),
-        #("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream"),
-        #("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream"),
-        #("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream"),
-        #("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream"),
-        #("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream"),
+        ("TestFile", "streetTestVideo2.mp4", True),
+        #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
+        #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
+        #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),
+        #("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", False),
+        #("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", False),
+        #("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream", False),
+        #("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream", False),
+        #("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream", False),
+        #("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", False),
+        #("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", False),
         ]
     main(test_url_list)
