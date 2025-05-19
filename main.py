@@ -71,14 +71,14 @@ def main(url_list, debug_mode=True, show_mode=True, max_frames=1000):
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
         after_object_detection_queue=Queue()
-        yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, debug_mode=debug_mode)
+        yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, process_num= 1, debug_mode=debug_mode)
         yolox_process.start()
 
         #Sort before Tracking
         # TODO: 귀찮음
 
         #Pose Estimation
-        mp_processes=pose_detector.run_pose_landmarker(input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
+        mp_processes=pose_detector.run_pose_landmarker(process_num=2, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
 
 
 
@@ -121,8 +121,8 @@ if __name__ == "__main__":
     set_start_method('spawn', force=True)
     freeze_support()
     test_url_list = [
-        ("LocalHost", "rtsp://localhost:8554/stream"),
-        #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream"),
+        #("LocalHost", "rtsp://localhost:8554/stream"),
+        ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream"),
         #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream"),
         #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream"),
         #("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream"),

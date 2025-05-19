@@ -233,7 +233,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
     
 
 
-def main(exp, args, stream_queue, return_queue, debug_mode=False):
+def main(exp, args, stream_queue, return_queue, process_num=4, debug_mode=False):
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
 
@@ -269,7 +269,7 @@ def main(exp, args, stream_queue, return_queue, debug_mode=False):
 
     imageflow_demo_process = Process(
         target=imageflow_demo,
-        args=(predictor, args, stream_queue, return_queue, 4, True, debug_mode)
+        args=(predictor, args, stream_queue, return_queue, process_num, True, debug_mode)
     )
     imageflow_demo_process.daemon = False
     return imageflow_demo_process
