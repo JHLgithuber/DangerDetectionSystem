@@ -110,7 +110,7 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
-        cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
+        cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
         cv2.resizeWindow(stream_name, 800, 600)
 
         while True:

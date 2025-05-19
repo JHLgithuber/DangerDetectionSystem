@@ -143,7 +143,7 @@ class PoseDetector:
         pose_demo_name="DRAWED IMAGE of ERROR"
         if debug:
             pose_demo_name=f"DRAWED IMAGE of {self.current_process_name}"
-            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
+            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
 
         for crop_object_img in crop_object_images:
             # 이미지가 올바른 형식인지 확인하고 변환

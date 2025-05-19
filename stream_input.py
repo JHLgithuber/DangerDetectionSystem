@@ -131,7 +131,7 @@ def _update_frame_from_file(
                 if metadata_queue.full():
                     metadata_queue.get()
                 metadata_queue.put(stream_frame_instance)
-                time.sleep(1 / 5)
+                time.sleep(1 / 30)
             print("endVideo")
             container.close()
 
