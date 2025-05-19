@@ -32,7 +32,7 @@ def get_args():
     )
     return hard_args
 
-def main(url_list, debug_mode=True, show_mode=True, max_frames=1000):
+def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frames=1000):
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
     stram_instance_dict=dict()
@@ -58,20 +58,17 @@ def main(url_list, debug_mode=True, show_mode=True, max_frames=1000):
             #if debug_mode: print(shm_name)
             #if debug_mode: print(shm_objs)
 
-        #입력 스트림 실행
-        for name, instance in stram_instance_dict.items():
-            instance.run_stream(shm_names_dict[name])
 
 
         #출력 스트림 설정
         output_metadata_queue = Queue()
-        start_imshow_demo(output_metadata_queue, debug=debug_mode)
+        demo_thread=start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         #YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
         after_object_detection_queue=Queue()
-        yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, process_num= 1, debug_mode=debug_mode)
+        yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, process_num= 1, all_object= False, debug_mode=debug_mode)
         yolox_process.start()
 
         #Sort before Tracking
@@ -80,7 +77,9 @@ def main(url_list, debug_mode=True, show_mode=True, max_frames=1000):
         #Pose Estimation
         mp_processes=pose_detector.run_pose_landmarker(process_num=2, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
 
-
+        #입력 스트림 실행
+        for name, instance in stram_instance_dict.items():
+            instance.run_stream(shm_names_dict[name])
 
 
         #뭔가 프로세싱
@@ -92,7 +91,13 @@ def main(url_list, debug_mode=True, show_mode=True, max_frames=1000):
 
         while True:
             time.sleep(1)
-            #TODO: WatchDog, 실시간 최적화 구현?
+            if not demo_thread.is_alive():
+                raise RuntimeError("demo thread is dead")
+            if not yolox_process.is_alive():
+                raise RuntimeError("yolox process is dead")
+            if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
+                raise RuntimeError("mp porc is dead")
+
 
 
     except KeyboardInterrupt:

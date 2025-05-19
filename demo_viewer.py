@@ -76,7 +76,37 @@ def demo_viewer(stream_name, frame, debug=False):
         print(f"[ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 
-def _update_imshow_process(stream_queue_for_process, debug=False):
+def _add_latency_to_frame(frame, captured_datetime):
+    """Calculate latency and add it to the frame."""
+    delta = datetime.now() - captured_datetime
+    latency_s = int(delta.total_seconds())
+    latency_us = int(delta.total_seconds() * 1_000_000)
+    latency_text = f"Latency is {latency_us:08d} us, about {latency_s}seconds"
+
+    cv2.putText(
+        frame,
+        latency_text,
+        (10, 20),  # Top-left corner of the frame
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,  # Font scale for better visibility
+        (255, 255, 255),  # White color
+        2,  # Thickness
+        cv2.LINE_AA
+    )
+
+    # Add text to the top left of the frame
+    cv2.putText(
+        frame, 
+        latency_text, 
+        (10, 20),  # Top-left corner of the frame
+        cv2.FONT_HERSHEY_SIMPLEX, 
+        0.5,  # Font scale for better visibility
+        (0, 0, 0),  # Black color
+        1,  # Thickness
+        cv2.LINE_AA
+    )
+
+def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=False):
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
@@ -85,42 +115,46 @@ def _update_imshow_process(stream_queue_for_process, debug=False):
 
         while True:
             instances_per_frame_instance = stream_queue_for_process.get()
-            if debug: print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
+            if debug: 
+                print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
+                
             if instances_per_frame_instance is not None:
                 if instances_per_frame_instance.human_tracking_serial is not None:
-                    print(f"[INFO] {stream_name} instances_per_frame is not None")
-                    result_frame = visual_from_tracking_serial(stream_frame_instance=instances_per_frame_instance,
-                                                               cls_conf=0.35)
-
+                    result_frame = visual_from_tracking_serial(
+                        stream_frame_instance=instances_per_frame_instance, 
+                        cls_conf=0.35
+                    )
                 elif instances_per_frame_instance.human_detection_numpy is not None:
-                    result_frame = visual_from_detection_numpy(stream_frame_instance=instances_per_frame_instance,
-                                                               cls_conf=0.35)
-
+                    result_frame = visual_from_detection_numpy(
+                        stream_frame_instance=instances_per_frame_instance, 
+                        cls_conf=0.35
+                    )
                 else:
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-                        instances_per_frame_instance, debug=True)
+                        instances_per_frame_instance, 
+                        debug=True
+                    )
 
+                # Add latency to the frame
+                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
+
+                # Display the updated frame
                 demo_viewer(stream_name, result_frame, debug=debug)
             else:
                 print(f"[INFO] {stream_name} instances_per_frame is None")
                 break
-            delta = datetime.now() - instances_per_frame_instance.captured_datetime
-            latency_s = int(delta.total_seconds())
-            latency_us = int(delta.total_seconds() * 1_000_000)
-            cv2.displayOverlay(stream_name, f"Latency is {latency_us:08d} µs, about {latency_s} seconds", 2000)
+
             cv2.waitKey(1)
         cv2.destroyAllWindows()
-        return
     except Exception as e:
         cv2.destroyAllWindows()
-        print(f"\nDEMO VIEWER of {stream_name} is KILL by {e}")
+        print(f"\n[ERROR] DEMO VIEWER of {stream_name} terminated due to: {e}")
     except KeyboardInterrupt:
         cv2.destroyAllWindows()
-        print(f"DEMO VIEWER of {stream_name} is END by KeyboardInterrupt")
-        return
+        print(f"[INFO] DEMO VIEWER of {stream_name} ended by KeyboardInterrupt")
 
 
-def _show_imshow_demo(stream_queue, debug=False):
+def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
     stream_viewer_queue_dict = dict()
     stream_viewer_process_set = set()
     try:
@@ -133,7 +167,7 @@ def _show_imshow_demo(stream_queue, debug=False):
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
-                process = Process(target=_update_imshow_process, args=(stream_viewer_queue_dict[stream_name], debug))
+                process = Process(target=_update_imshow_process, args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
                 # process.daemon = True
                 stream_viewer_process_set.add(process)
                 process.start()
@@ -154,8 +188,8 @@ def _show_imshow_demo(stream_queue, debug=False):
             print(f"[INFO] {viewer.name} is terminated.")
 
 
-def start_imshow_demo(stream_queue, debug=False, ):
-    imshow_demo_thread = Thread(target=_show_imshow_demo, args=(stream_queue, debug))
+def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
+    imshow_demo_thread = Thread(target=_show_imshow_demo, args=(stream_queue, show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread
