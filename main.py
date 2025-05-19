@@ -43,7 +43,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         input_metadata_queue = Queue()
         for name, url in url_list:
             print(f"name: {name}, url: {url}")
-            stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, debug=debug_mode)
+            stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, debug=debug_mode)
 
 
         #공유메모리 설정

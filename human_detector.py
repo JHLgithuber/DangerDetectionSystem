@@ -173,52 +173,18 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                         if debug_mode: print(f"input_queue put {instance_id}")
                     elif stream_frame_instance.bypass_flag is True:
                         return_queue.put(stream_frame_instance)
-    
-    
+
+
                 if not output_queue.empty():
-                    # 결과를 정렬하기 위한 버퍼 딕셔너리 (스트림별로 관리)
-                    stream_buffers = defaultdict(list)
-                    buffer_size = 1000  # 버퍼 크기
-                    
-                    # 현재 가능한 결과들 수집
-                    while not output_queue.empty():
-                        try:
-                            output_dict = output_queue.get_nowait()
-                            if output_dict["id"] in waiting_instance_dict:
-                                inst = waiting_instance_dict[output_dict["id"]]
-                                stream_name = inst.stream_name
-                                stream_buffers[stream_name].append((inst.captured_datetime, output_dict))
-                                
-                                # 버퍼가 너무 커지면 가장 오래된 것부터 처리
-                                if len(stream_buffers[stream_name]) >= buffer_size // 10:
-                                    # 시간순 정렬
-                                    stream_buffers[stream_name].sort(key=lambda x: x[0])
-                                    # 가장 오래된 프레임 처리
-                                    _, oldest_output = stream_buffers[stream_name].pop(0)
-                                    
-                                    if return_queue.full():
-                                        return_queue.get()
-                                    output_frame_instance = waiting_instance_dict.pop(oldest_output["id"])
-                                    output_frame_instance.human_detection_numpy = oldest_output["output_numpy"]
-                                    return_queue.put(output_frame_instance)
-                                    if debug_mode: 
-                                        print(f"return_queue put {oldest_output['id']} at {output_frame_instance.captured_datetime}")
-                                        
-                        except queue.Empty:
-                            break
-                    
-                    # 남은 버퍼 처리
-                    for stream_name, buffer in stream_buffers.items():
-                        if buffer:
-                            buffer.sort(key=lambda x: x[0])
-                            for _, output_dict in buffer:
-                                if return_queue.full():
-                                    return_queue.get()
-                                output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
-                                output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
-                                return_queue.put(output_frame_instance)
-                                if debug_mode: 
-                                    print(f"return_queue put {output_dict['id']} at {output_frame_instance.captured_datetime}")
+                    output_dict = output_queue.get()
+                    if output_dict["id"] in waiting_instance_dict:
+                        if return_queue.full():
+                            return_queue.get()
+                        output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
+                        output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
+                        return_queue.put(output_frame_instance)
+                    else:
+                        logger.info("output_dict id not found")
     
     
             except queue.Empty:

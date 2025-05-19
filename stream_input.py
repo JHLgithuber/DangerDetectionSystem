@@ -15,14 +15,26 @@ from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 
 
-def _update_frame(rtsp_url, stream_name, shm_names, metadata_queue, debug=False, bypass_frame=0,):
+def _update_frame(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame,):
     try:
         print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
         container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
         bypassed_count = 0
+        received_count = receive_frame
+        ignore_count = 0
         index = 0
+
+
         for frame in container.decode(video=0):
                 raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
+
+                if ignore_count > 0:
+                    ignore_count -= 1
+                    if ignore_count == 0:
+                        received_count = receive_frame
+                    if debug: print(f"[{stream_name}] 무시")
+                    continue
+
                 if debug: print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
 
                 if bypassed_count < bypass_frame:
@@ -44,6 +56,9 @@ def _update_frame(rtsp_url, stream_name, shm_names, metadata_queue, debug=False,
                 )
 
                 index = (index + 1) % len(shm_names)
+                received_count -= 1
+                if received_count <= 0:
+                    ignore_count =ignore_frame
 
                 if metadata_queue.full():
                     metadata_queue.get()
@@ -59,13 +74,15 @@ def _update_frame(rtsp_url, stream_name, shm_names, metadata_queue, debug=False,
 
 
 class RtspStream:
-    def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, debug=False,):
+    def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1, ignore_frame=0, debug=False,):
         self.stream_thread = None
         self.rtsp_url = rtsp_url
         self.stream_name = stream_name
         self.metadata_queue = metadata_queue
         self.debug=debug
         self.bypass_frame = bypass_frame
+        self.receive_frame = receive_frame
+        self.ignore_frame = ignore_frame
         self.shape=None
         self.bytes=None
 
@@ -96,7 +113,7 @@ class RtspStream:
 
     def run_stream(self, manager_smm):
         self.stream_thread = Thread(target=_update_frame, name=self.stream_name,
-                                    args=(self.rtsp_url, self.stream_name, manager_smm, self.metadata_queue, self.debug, self.bypass_frame,))
+                                    args=(self.rtsp_url, self.stream_name, manager_smm, self.metadata_queue, self.debug, self.bypass_frame, self.receive_frame, self.ignore_frame,))
         self.stream_thread.daemon = True
         self.stream_thread.start()
         return
