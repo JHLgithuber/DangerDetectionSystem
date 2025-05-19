@@ -121,8 +121,9 @@ if __name__ == "__main__":
     set_start_method('spawn', force=True)
     freeze_support()
     test_url_list = [
-        ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream"),
-        ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream"),
+        ("LocalHost", "rtsp://localhost:8554/stream"),
+        #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream"),
+        #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream"),
         #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream"),
         #("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream"),
         #("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream"),
