@@ -40,7 +40,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
     mp_processes=None
 
     try:#입력 스트림 초기화
-        input_metadata_queue = Queue()
+        input_metadata_queue = Queue(maxsize=700)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, is_file=is_file, debug=debug_mode)
@@ -61,13 +61,13 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
 
         #출력 스트림 설정
-        output_metadata_queue = Queue()
+        output_metadata_queue = Queue(maxsize=10)
         demo_thread=start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         #YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue=Queue()
+        after_object_detection_queue=Queue(maxsize=100)
         yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, process_num= 1, all_object= False, debug_mode=debug_mode)
         yolox_process.start()
 
