@@ -125,13 +125,14 @@ def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue,
     return processes
 
 class PoseDetector:
-    def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, debug=False):
+    def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, show_now=False, debug=False):
         base_options = python.BaseOptions(model_asset_path=model_asset_path)
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             num_poses=num_poses,
             output_segmentation_masks=False)
         self.detector = vision.PoseLandmarker.create_from_options(options)
+        self.show_now=show_now
         self.debug = debug
         self.current_process_name = current_process_name
         if self.debug: print(f"pose_landmarker: {self.detector}")
@@ -141,7 +142,7 @@ class PoseDetector:
         pose_landmarker_results = list()
         crop_object_img=None
         pose_demo_name="DRAWED IMAGE of ERROR"
-        if debug:
+        if self.show_now:
             pose_demo_name=f"DRAWED IMAGE of {self.current_process_name}"
             cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
 
@@ -159,7 +160,7 @@ class PoseDetector:
             if debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
-            if debug:
+            if self.show_now:
                 annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'])
                 cv2.imshow(pose_demo_name, annotated_image)
                 cv2.waitKey(1)
@@ -169,7 +170,7 @@ class PoseDetector:
         return pose_landmarker_results
 
 
-def draw_world_landmarks_with_coordinates(detection_result, rgb_image,):
+def draw_world_landmarks_with_coordinates(detection_result, rgb_image, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
     # 3D 월드 랜드마크 리스트 (list of list)
@@ -184,6 +185,7 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image,):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         return annotated_image
 
+    #TODO: 분리 요망
     if fall_detecting_algorithm.detect_fall(detection_result):
         cv2.putText(annotated_image, "FALL", (1, 11),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
@@ -212,15 +214,15 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image,):
         )
 
         # 3D 월드 좌표 텍스트 표시
-        for lm2d, lm3d in zip(lm2d_list, lm3d_list):
-            x_px = int(lm2d.x * w)
-            y_px = int(lm2d.y * h)
-            coord_text = f"({lm3d.x:.2f}m, {lm3d.y:.2f}m, {lm3d.z:.2f}m)"
-            # 검은 테두리
-            cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), 2)
-            # 흰 글씨
-            cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+        #for lm2d, lm3d in zip(lm2d_list, lm3d_list):
+        #    x_px = int(lm2d.x * w)
+        #    y_px = int(lm2d.y * h)
+        #    coord_text = f"({lm3d.x:.2f}m, {lm3d.y:.2f}m, {lm3d.z:.2f}m)"
+        #    # 검은 테두리
+        #    cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
+        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), 2)
+        #    # 흰 글씨
+        #    cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
+        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
     return annotated_image

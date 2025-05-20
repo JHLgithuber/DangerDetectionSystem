@@ -1,5 +1,5 @@
 from datetime import datetime
-
+from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 import cv2
 import numpy as np
 import time
@@ -11,6 +11,19 @@ import torch
 import dataclass_for_StreamFrameInstance
 from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
+
+def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
+    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
+    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
+    output = torch.tensor(stream_frame_instance.human_detection_numpy, dtype=torch.float32)
+    crop_object_images = crop_objects(stream_frame_instance)
+
+    for crop_object_img,pose_detection in zip(crop_object_images, stream_frame_instance.pose_detection_list):
+        pose_landmark_img=draw_world_landmarks_with_coordinates(pose_detection, crop_object_img["crop"])
+        (x1_p, y1_p, x2_p, y2_p)=(crop_object_img["bbox"])
+        frame[y1_p:y2_p, x1_p:x2_p]=pose_landmark_img
+
+    return frame
 
 
 def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
@@ -110,7 +123,7 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
-        cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(stream_name, 800, 600)
 
         while True:
@@ -119,7 +132,12 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
                 
             if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.human_tracking_serial is not None:
+                if instances_per_frame_instance.pose_detection_list is not None:
+                    result_frame = visual_from_pose_estimation(
+                        stream_frame_instance=instances_per_frame_instance,
+                        cls_conf=0.35
+                    )
+                elif instances_per_frame_instance.human_tracking_serial is not None:
                     result_frame = visual_from_tracking_serial(
                         stream_frame_instance=instances_per_frame_instance, 
                         cls_conf=0.35

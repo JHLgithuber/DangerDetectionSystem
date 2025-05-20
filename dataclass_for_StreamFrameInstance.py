@@ -54,7 +54,7 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
         if debug: print(f"save {shm.name} to shared memory")
         return shm_name
     except Exception as e:
-        print(e)
+        print(f"공유 메모리 저장 중 오류: {e}")
         return None
     finally:
         shm.close()
@@ -87,7 +87,7 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
             shm.close()
 
 
-def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=100):
+def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=10, debug=False,):
     """
     시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
     
@@ -101,7 +101,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
     """
     buffer = []
     stream_buffers = defaultdict(list)
-    
+    if debug: print(f"[DEBUG] sorter is run")
     while True:
         # 큐에서 데이터 가져오기
         try:
@@ -112,17 +112,19 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
             
             # 각 스트림별 버퍼가 일정 크기를 넘으면 가장 오래된 프레임 제공
             for stream_name, instances in list(stream_buffers.items()):
-                if len(instances) > buffer_size // 10:  # 각 스트림에 버퍼 크기의 10% 할당
+                if len(instances) > buffer_size:  # 각 스트림에 버퍼 크기의 10% 할당
                     # 날짜 기준 정렬
                     instances.sort(key=lambda x: x.captured_datetime)
                     oldest = instances.pop(0)  # 가장 오래된 항목 제거
-                    
+
+                    if debug: print(f"[DEBUG] sorted_frame_instance_queue.put(oldest_image)")
                     # 제너레이터로 반환
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
                     yield oldest
         
         except Exception as e:
+            if debug: print(f"[DEBUG] sorter error: {e}")
             # 큐가 비어있거나 다른 예외 발생 시 잠시 대기
             time.sleep(0.01)
             

@@ -108,11 +108,14 @@ def _update_frame_from_file(
                     bypass_flag = False
                     bypassed_count = 0
 
+
                 memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
                     frame=raw_stream_view,
                     shm_name=shm_names[index],
                     debug=debug
                 )
+                if memory_name is None:
+                    continue
 
                 stream_frame_instance = StreamFrameInstance(
                     stream_name=stream_name,
@@ -122,6 +125,7 @@ def _update_frame_from_file(
                     width=raw_stream_view.shape[1],
                     bypass_flag=bypass_flag,
                 )
+
 
                 index = (index + 1) % len(shm_names)
                 received_count -= 1
