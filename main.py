@@ -2,6 +2,7 @@ import argparse
 import time
 from multiprocessing.managers import SharedMemoryManager
 from multiprocessing import Queue, freeze_support, set_start_method
+from threading import Thread
 from yolox.exp import get_exp
 import cv2
 import pose_detector
@@ -62,7 +63,11 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
         #출력 스트림 설정
         output_metadata_queue = Queue(maxsize=10)
-        demo_thread=start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
+        sorted_metadata_queue = Queue(maxsize=10)
+        sorter_thread=Thread(target=dataclass_for_StreamFrameInstance.sorter, args=(output_metadata_queue, sorted_metadata_queue))
+        sorter_thread.daemon=True
+        sorter_thread.start()
+        demo_thread=start_imshow_demo(sorted_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         #YOLOX ObjectDetection
         args = get_args()
@@ -93,6 +98,8 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             time.sleep(1)
             if not demo_thread.is_alive():
                 raise RuntimeError("demo thread is dead")
+            if not sorter_thread.is_alive():
+                raise RuntimeError("sorter thread is dead")
             if not yolox_process.is_alive():
                 raise RuntimeError("yolox process is dead")
             if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
@@ -117,6 +124,8 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
 
         frame_smm_mgr.shutdown()
+        del frame_smm_mgr
+        del sorter_thread
 
 
 
@@ -128,6 +137,7 @@ if __name__ == "__main__":
     test_url_list = [
         #("LocalHost", "rtsp://localhost:8554/stream"),
         ("TestFile", "streetTestVideo3.mp4", True),
+        #("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
         #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),

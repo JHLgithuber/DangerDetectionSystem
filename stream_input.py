@@ -108,20 +108,23 @@ def _update_frame_from_file(
                     bypass_flag = False
                     bypassed_count = 0
 
-                memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
-                    frame=raw_stream_view,
-                    shm_name=shm_names[index],
-                    debug=debug
-                )
+                try:
+                    memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
+                        frame=raw_stream_view,
+                        shm_name=shm_names[index],
+                        debug=debug
+                    )
 
-                stream_frame_instance = StreamFrameInstance(
-                    stream_name=stream_name,
-                    frame_index=index,
-                    memory_name=memory_name,
-                    height=raw_stream_view.shape[0],
-                    width=raw_stream_view.shape[1],
-                    bypass_flag=bypass_flag,
-                )
+                    stream_frame_instance = StreamFrameInstance(
+                        stream_name=stream_name,
+                        frame_index=index,
+                        memory_name=memory_name,
+                        height=raw_stream_view.shape[0],
+                        width=raw_stream_view.shape[1],
+                        bypass_flag=bypass_flag,
+                    )
+                except Exception as e:
+                    print(f"SAVE frame FAIL: {e}")
 
                 index = (index + 1) % len(shm_names)
                 received_count -= 1
