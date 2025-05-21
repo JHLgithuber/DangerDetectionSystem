@@ -99,9 +99,9 @@ def _add_latency_to_frame(frame, captured_datetime):
     cv2.putText(
         frame,
         latency_text,
-        (10, 20),  # Top-left corner of the frame
+        (20, 20),  # Top-left corner of the frame
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,  # Font scale for better visibility
+        0.7,  # Font scale for better visibility
         (255, 255, 255),  # White color
         2,  # Thickness
         cv2.LINE_AA
@@ -111,9 +111,9 @@ def _add_latency_to_frame(frame, captured_datetime):
     cv2.putText(
         frame, 
         latency_text, 
-        (10, 20),  # Top-left corner of the frame
+        (20, 20),  # Top-left corner of the frame
         cv2.FONT_HERSHEY_SIMPLEX, 
-        0.5,  # Font scale for better visibility
+        0.7,  # Font scale for better visibility
         (0, 0, 0),  # Black color
         1,  # Thickness
         cv2.LINE_AA
@@ -126,8 +126,12 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
         cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(stream_name, 800, 600)
 
+        sorter_gen=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue_for_process,
+                                                            debug=debug)
+
         while True:
-            instances_per_frame_instance = stream_queue_for_process.get()
+            #instances_per_frame_instance = stream_queue_for_process.get()
+            instances_per_frame_instance=next(sorter_gen)
             if debug: 
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
                 

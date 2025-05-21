@@ -181,17 +181,17 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image, debug=Fal
 
     # 둘 중 하나라도 없으면 원본 반환
     if not pixel_landmarks_list or not world_landmarks_list:
-        cv2.putText(annotated_image, "Fail", (1, 11),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+        cv2.putText(annotated_image, "Fail", (5, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 0)
         return annotated_image
 
     #TODO: 분리 요망
     if fall_detecting_algorithm.detect_fall(detection_result):
-        cv2.putText(annotated_image, "FALL", (1, 11),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+        cv2.putText(annotated_image, "FALL", (5, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
     else:
-        cv2.putText(annotated_image, "NOT FALL", (1, 11),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+        cv2.putText(annotated_image, "NOT FALL", (5, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
 
     # 인물(사람)별로 순회
     for idx in range(len(pixel_landmarks_list)):

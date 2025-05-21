@@ -20,6 +20,7 @@ def run_tracker_worker(messy_input_queue, output_queue, debug=False):
 
 def _tracker_worker(messy_input_queue, output_queue, debug):
     tracker=Tracker(messy_input_queue=messy_input_queue, messy_output_queue=output_queue, debug=debug)
+    #TODO: 정렬 수정 필요
     sorter=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=messy_input_queue,
                                                     sorted_frame_instance_queue=None,
                                                     buffer_size=100)

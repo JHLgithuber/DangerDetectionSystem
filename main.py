@@ -63,11 +63,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
         #출력 스트림 설정
         output_metadata_queue = Queue(maxsize=10)
-        sorted_metadata_queue = Queue(maxsize=10)
-        sorter_thread=Thread(target=dataclass_for_StreamFrameInstance.sorter, args=(output_metadata_queue, sorted_metadata_queue))
-        sorter_thread.daemon=True
-        sorter_thread.start()
-        demo_thread=start_imshow_demo(sorted_metadata_queue, show_latency=show_latency, debug=debug_mode)
+        demo_thread=start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         #YOLOX ObjectDetection
         args = get_args()
@@ -80,7 +76,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         # TODO: 귀찮음
 
         #Pose Estimation
-        mp_processes=pose_detector.run_pose_landmarker(process_num=2, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
+        mp_processes=pose_detector.run_pose_landmarker(process_num=4, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
 
         #입력 스트림 실행
         for name, instance in stram_instance_dict.items():
@@ -95,11 +91,16 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         #    output_metadata_queue.put(porc_frame)
 
         while True:
-            time.sleep(1)
+            time.sleep(2)
+            #Bottle Neck Check
+            if input_metadata_queue.full(): print("input_metadata_queue is FULL")
+            if output_metadata_queue.full(): print("output_metadata_queue is FULL")
+            if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
+
+
+            #Watch Dog
             if not demo_thread.is_alive():
                 raise RuntimeError("demo thread is dead")
-            if not sorter_thread.is_alive():
-                raise RuntimeError("sorter thread is dead")
             if not yolox_process.is_alive():
                 raise RuntimeError("yolox process is dead")
             if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
@@ -125,8 +126,6 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
         frame_smm_mgr.shutdown()
         del frame_smm_mgr
-        del sorter_thread
-
 
 
 
