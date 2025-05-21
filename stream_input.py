@@ -3,6 +3,9 @@ import sys
 import time
 import uuid
 from multiprocessing import Manager
+
+import cv2
+
 import dataclass_for_StreamFrameInstance
 from threading import Thread
 
@@ -11,6 +14,7 @@ import numpy as np
 
 import demo_viewer
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
+
 
 def _process_frames_common(
         frame_iterator,
@@ -21,11 +25,12 @@ def _process_frames_common(
         bypass_frame,
         receive_frame,
         ignore_frame,
+        stream_start_index,
 ):
     bypassed_count = 0
     received_count = receive_frame
     ignore_count = 0
-    index = 0
+    index = stream_start_index
 
     for frame in frame_iterator:
         raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
@@ -74,26 +79,26 @@ def _process_frames_common(
         time.sleep(1 / 30)
 
 
-def _update_frame_from_rtsp(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, ):
+def _update_frame_from_rtsp(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index, ):
     try:
         print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
         container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
         frame_iterator = container.decode(video=0)
         _process_frames_common(
-            frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame
+            frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index,
         )
     except Exception as e:
         print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
 
 
-def _update_frame_from_file(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, ):
+def _update_frame_from_file(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index):
     try:
         while True:
             print(f"[INFO] Video File: {rtsp_url} will OPEN")
             container = av.open(rtsp_url)
             frame_iterator = container.decode(video=0)
             _process_frames_common(
-                frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame
+                frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index
             )
             print("endVideo")
             container.close()
@@ -104,6 +109,8 @@ def _update_frame_from_file(rtsp_url, stream_name, shm_names, metadata_queue, de
 class RtspStream:
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
                  ignore_frame=0, debug=False, is_file=False):
+        self.manager_smm = None
+        self.stream_start_index=None
         self.stream_thread = None
         self.rtsp_url = rtsp_url
         self.is_file = is_file
@@ -139,26 +146,68 @@ class RtspStream:
     def get_bytes(self):
         return self.bytes
 
-    def _stream_slow_start(self):
-        print(f"[INFO] RTSP URL: {self.rtsp_url} will OPEN for slow start")
-        container = av.open(self.rtsp_url, options={'rtsp_transport': 'tcp'})
-        for frame in container.decode(video=0):
-            img = frame.to_ndarray(format='bgr24')
-            self.shape = img.shape
-            self.bytes = img.nbytes
-            print(f"[INFO] RTSP URL: {self.rtsp_url} will OPEN for slow start")
-            break
-        container.close()
+    def _stream_slow_starting_up(self):
+        start_percent = 0
+        index = 0
+        max_frame_count = 20
+        empty_frame = None
+        for index in range(max_frame_count):
+            start_percent=index/max_frame_count*100
+            empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
+            y0 = 100     # 첫 줄의 y좌표
+            dy = 80      # 줄 간 간격 (원하는 만큼 조절)
+            lines = [
+                "Hello!",
+                "Processing stream is starting up...",
+                "Please wait about a minute.",
+                f"{start_percent:.2f}%"
+            ]
+            for i, line in enumerate(lines):
+                y = y0 + i * dy
+                cv2.putText(
+                    empty_frame,
+                    line,
+                    (50, y),  # x, y좌표
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    2,
+                    (0, 255, 0),
+                    3,
+                    cv2.LINE_AA
+                )
+
+            memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
+                frame=empty_frame.copy(),
+                shm_name=self.manager_smm[index],
+                debug=self.debug
+            )
+
+            stream_frame_instance = StreamFrameInstance(
+                stream_name=self.stream_name,
+                frame_index=index,
+                memory_name=memory_name,
+                height=self.shape[0],
+                width=self.shape[1],
+                bypass_flag=False,
+            )
+
+            index = (index + 1) % len(self.manager_smm)
+            print(f"stream start up... {index}")
+            self.metadata_queue.put(stream_frame_instance)
+            time.sleep(max((max_frame_count-index)/4,0.5))
+        return index
+
 
     def run_stream(self, manager_smm):
+        self.manager_smm=manager_smm
+        self.stream_start_index= self._stream_slow_starting_up()
         if not self.is_file:
             self.stream_thread = Thread(target=_update_frame_from_rtsp, name=self.stream_name,
-                                        args=(self.rtsp_url, self.stream_name, manager_smm, self.metadata_queue, self.debug,
-                                              self.bypass_frame, self.receive_frame, self.ignore_frame,))
+                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue, self.debug,
+                                              self.bypass_frame, self.receive_frame, self.ignore_frame, self.stream_start_index,))
         else:
             self.stream_thread = Thread(target=_update_frame_from_file, name=self.stream_name,
-                                        args=(self.rtsp_url, self.stream_name, manager_smm, self.metadata_queue, self.debug,
-                                                  self.bypass_frame, self.receive_frame, self.ignore_frame,))
+                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue, self.debug,
+                                                  self.bypass_frame, self.receive_frame, self.ignore_frame, self.stream_start_index,))
         self.stream_thread.daemon = True
         self.stream_thread.start()
         return self.stream_thread

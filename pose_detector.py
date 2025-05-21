@@ -167,6 +167,9 @@ class PoseDetector:
 
             if detection_result: pose_landmarker_results.append(detection_result)
             else: pose_landmarker_results.append([])
+
+        if not pose_landmarker_results:
+            return None
         return pose_landmarker_results
 
 

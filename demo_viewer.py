@@ -154,7 +154,7 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                 else:
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
                         instances_per_frame_instance, 
-                        debug=True
+                        debug=debug
                     )
 
                 # Add latency to the frame

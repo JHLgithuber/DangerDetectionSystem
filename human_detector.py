@@ -81,10 +81,6 @@ class Predictor(object):
         last_collect = time.time()
 
         while True:
-            if input_queue.empty():
-                time.sleep(1/30)
-                if debug_mode: print("input_queue empty")
-                continue
             input_dict = input_queue.get()
 
             batch_inputs.append(input_dict["img"])

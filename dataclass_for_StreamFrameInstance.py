@@ -63,11 +63,11 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
 def load_frame_from_shared_memory(stream_frame_instance, debug=False):
     """공유 메모리에서 프레임을 로드합니다."""
     if debug: 
-        print(f"[DEBUG] load_frame_from_shared_memory")
+        print(f"[DEBUG] load_frame_from_shared_memory start")
     memory_name = stream_frame_instance.memory_name
     shm = None
     try:
-        print(memory_name)
+        if debug: print(f"memory_name is {memory_name} for load_frame")
         shm = shared_memory.SharedMemory(name=memory_name)
         shape = (stream_frame_instance.height, stream_frame_instance.width, 3)
         # 즉시 복사하여 새로운 버퍼 생성
@@ -122,9 +122,9 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
                     yield oldest
-        
+
         except Exception as e:
-            if debug: print(f"[DEBUG] sorter error: {e}")
+            if debug: print(f"[DEBUG] sorter error or empty: {e}")
             # 큐가 비어있거나 다른 예외 발생 시 잠시 대기
             time.sleep(0.01)
             

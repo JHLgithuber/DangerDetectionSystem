@@ -11,6 +11,7 @@ import human_detector
 #from queue import Queue
 from stream_input import RtspStream
 from demo_viewer import start_imshow_demo
+import sys
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -126,6 +127,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
         frame_smm_mgr.shutdown()
         del frame_smm_mgr
+        sys.exit(0)
 
 
 
@@ -135,8 +137,8 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         #("LocalHost", "rtsp://localhost:8554/stream"),
-        ("TestFile", "streetTestVideo3.mp4", True),
-        #("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
+        #("TestFile", "streetTestVideo3.mp4", True),
+        ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
         #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),
