@@ -1,17 +1,18 @@
 import argparse
 import time
 from multiprocessing.managers import SharedMemoryManager
-from multiprocessing import Queue, freeze_support, set_start_method
+from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from threading import Thread
 from yolox.exp import get_exp
 import cv2
 import pose_detector
 import dataclass_for_StreamFrameInstance
 import human_detector
-#from queue import Queue
+# from queue import Queue
 from stream_input import RtspStream
 from demo_viewer import start_imshow_demo
 import sys
+
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -24,8 +25,8 @@ def get_args():
         exp_file=None,
         ckpt="yolox_x.pth",
         device="gpu",
-        conf=0.45,  #신뢰도
-        nms=0.65,   #클수록 겹치는 바운딩박스 제거
+        conf=0.45,  # 신뢰도
+        nms=0.65,  # 클수록 겹치는 바운딩박스 제거
         tsize=640,
         fp16=False,
         legacy=False,
@@ -34,58 +35,65 @@ def get_args():
     )
     return hard_args
 
-def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frames=1000):
+
+def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_frames=1000):
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
-    stream_instance_dict=dict()
-    yolox_process=None
-    mp_processes=None
+    stream_instance_dict = dict()
+    yolox_process = None
+    mp_processes = None
 
-    try:#입력 스트림 초기화
+    try:  # 입력 스트림 초기화
+        logical_cores = cpu_count()
+        yolox_cores = max(int(logical_cores // 2.5),2)
+        mp_cores = max(int(logical_cores - yolox_cores // 1.2),2)
+        print(f"yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
+
         input_metadata_queue = Queue(maxsize=700)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
-            stream_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, is_file=is_file, debug=debug_mode)
+            stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
+                                                    receive_frame=1, ignore_frame=0, is_file=is_file, debug=debug_mode)
 
-
-        #공유메모리 설정
-        shm_objs_dict=dict()
-        shm_names_dict=dict()
+        # 공유메모리 설정
+        shm_objs_dict = dict()
+        shm_names_dict = dict()
         for name, instance in stream_instance_dict.items():
-            shm_objs=[frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
+            shm_objs = [frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
             for shm in shm_objs: shm.buf[:] = b'\0' * instance.get_bytes()
-            shm_name=[shm.name for shm in shm_objs]
-            shm_objs_dict[name]=shm_objs
-            shm_names_dict[name]=shm_name
-            #if debug_mode: print(shm_name)
-            #if debug_mode: print(shm_objs)
+            shm_name = [shm.name for shm in shm_objs]
+            shm_objs_dict[name] = shm_objs
+            shm_names_dict[name] = shm_name
+            # if debug_mode: print(shm_name)
+            # if debug_mode: print(shm_objs)
 
-
-
-        #출력 스트림 설정
+        # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=10)
-        demo_thread=start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
+        demo_thread = start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
-        #YOLOX ObjectDetection
+        # YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue=Queue(maxsize=100)
-        yolox_process=human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue, process_num= 1, all_object= False, debug_mode=debug_mode)
+        after_object_detection_queue = Queue(maxsize=100)
+        yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
+                                            process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
-        #Sort before Tracking
+        # Sort before Tracking
         # TODO: 귀찮음
 
-        #Pose Estimation
-        mp_processes=pose_detector.run_pose_landmarker(process_num=4, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
+        # Pose Estimation
+        mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
+                                                         input_frame_instance_queue=after_object_detection_queue,
+                                                         output_frame_instance_queue=output_metadata_queue,
+                                                         debug=debug_mode, )
 
-        #입력 스트림 실행
+        # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
             instance.run_stream(shm_names_dict[name])
 
-
-        #뭔가 프로세싱
-        #while True:
+        # 뭔가 프로세싱
+        # while True:
         #    porc_frame=input_metadata_queue.get()
         #    #time.sleep(5)
         #    if debug_mode: print(f"porc_frame.captured_datetime: {porc_frame.captured_datetime}")
@@ -93,13 +101,12 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
 
         while True:
             time.sleep(2)
-            #Bottle Neck Check
+            # Bottle Neck Check
             if input_metadata_queue.full(): print("input_metadata_queue is FULL")
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
 
-
-            #Watch Dog
+            # Watch Dog
             if not demo_thread.is_alive():
                 raise RuntimeError("demo thread is dead")
             if not yolox_process.is_alive():
@@ -108,9 +115,10 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                 raise RuntimeError("mp porc is dead")
 
 
-
     except KeyboardInterrupt:
         print("main end by KeyboardInterrupt")
+    except RuntimeError as e:
+        print(f"main RuntimeError: {e}")
     except Exception as e:
         print(f"main error: {e}")
 
@@ -143,26 +151,23 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         return exit_code  # 종료 코드 반환
 
 
-
-
-
 if __name__ == "__main__":
     set_start_method('spawn', force=True)
     freeze_support()
     test_url_list = [
-        #("LocalHost", "rtsp://localhost:8554/stream"),
-        #("TestFile", "streetTestVideo3.mp4", True),
+        # ("LocalHost", "rtsp://localhost:8554/stream"),
+        # ("TestFile", "streetTestVideo3.mp4", True),
         ("TestFile", "streetTestVideo.mp4", True),
-        #("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
-        #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
-        #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
-        #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),
-        #("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", False),
-        #("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", False),
-        #("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream", False),
-        #("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream", False),
-        #("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream", False),
-        #("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", False),
-        #("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", False),
-        ]
+        # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
+        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
+        # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
+        # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),
+        # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", False),
+        # ("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", False),
+        # ("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream", False),
+        # ("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream", False),
+        # ("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream", False),
+        # ("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", False),
+        # ("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", False),
+    ]
     main(test_url_list)

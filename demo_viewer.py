@@ -12,6 +12,7 @@ import dataclass_for_StreamFrameInstance
 from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
+
 def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
     # 1. 원본 프레임 불러오기
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
@@ -24,14 +25,13 @@ def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
     # 3. 각 객체(사람)별로 스켈레톤 그린 overlay 오버레이 방식으로 합성
     for crop_object_img, pose_detection in zip(
             crop_object_images, stream_frame_instance.pose_detection_list):
-
         # (1) crop 크기만큼 검정 배경 생성
-        #crop_h, crop_w = crop_object_img["crop"].shape[:2]
-        #overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
+        # crop_h, crop_w = crop_object_img["crop"].shape[:2]
+        # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
 
         # (2) 오버레이에 스켈레톤(랜드마크) 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
-            pose_detection, img_size=crop_object_img["img_size"],)
+            pose_detection, img_size=crop_object_img["img_size"], )
 
         # (3) bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
@@ -45,7 +45,6 @@ def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
         # (7) (frame은 numpy view라서 자동 적용)
 
     return frame
-
 
 
 def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
@@ -131,15 +130,16 @@ def _add_latency_to_frame(frame, captured_datetime):
 
     # Add text to the top left of the frame
     cv2.putText(
-        frame, 
-        latency_text, 
+        frame,
+        latency_text,
         (20, 20),  # Top-left corner of the frame
-        cv2.FONT_HERSHEY_SIMPLEX, 
+        cv2.FONT_HERSHEY_SIMPLEX,
         0.7,  # Font scale for better visibility
         (0, 0, 0),  # Black color
         1,  # Thickness
         cv2.LINE_AA
     )
+
 
 def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=False):
     stream_name = stream_queue_for_process.get().stream_name
@@ -148,15 +148,15 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
         cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(stream_name, 800, 600)
 
-        sorter_gen=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue_for_process,
-                                                            debug=debug)
+        sorter_gen = dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue_for_process,
+                                                              debug=debug)
 
         while True:
-            #instances_per_frame_instance = stream_queue_for_process.get()
-            instances_per_frame_instance=next(sorter_gen)
-            if debug: 
+            # instances_per_frame_instance = stream_queue_for_process.get()
+            instances_per_frame_instance = next(sorter_gen)
+            if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
-                
+
             if instances_per_frame_instance is not None:
                 if instances_per_frame_instance.pose_detection_list is not None:
                     result_frame = visual_from_pose_estimation(
@@ -165,17 +165,17 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                     )
                 elif instances_per_frame_instance.human_tracking_serial is not None:
                     result_frame = visual_from_tracking_serial(
-                        stream_frame_instance=instances_per_frame_instance, 
+                        stream_frame_instance=instances_per_frame_instance,
                         cls_conf=0.35
                     )
                 elif instances_per_frame_instance.human_detection_numpy is not None:
                     result_frame = visual_from_detection_numpy(
-                        stream_frame_instance=instances_per_frame_instance, 
+                        stream_frame_instance=instances_per_frame_instance,
                         cls_conf=0.35
                     )
                 else:
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-                        instances_per_frame_instance, 
+                        instances_per_frame_instance,
                         debug=debug
                     )
 
@@ -211,13 +211,14 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
-                process = Process(target=_update_imshow_process, args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
+                process = Process(target=_update_imshow_process,
+                                  args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
                 # process.daemon = True
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
             stream_viewer_queue_dict[stream_name].put(stream)
-            #time.sleep(0.001)
+            # time.sleep(0.001)
 
     except KeyboardInterrupt:
         print("\nDEMO VIEWER is END by KeyboardInterrupt")
