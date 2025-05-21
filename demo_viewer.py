@@ -13,17 +13,39 @@ from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
 def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
-    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
+    # 1. 원본 프레임 불러오기
+    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
+        stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
-    output = torch.tensor(stream_frame_instance.human_detection_numpy, dtype=torch.float32)
-    crop_object_images = crop_objects(stream_frame_instance)
 
-    for crop_object_img,pose_detection in zip(crop_object_images, stream_frame_instance.pose_detection_list):
-        pose_landmark_img=draw_world_landmarks_with_coordinates(pose_detection, crop_object_img["crop"])
-        (x1_p, y1_p, x2_p, y2_p)=(crop_object_img["bbox"])
-        frame[y1_p:y2_p, x1_p:x2_p]=pose_landmark_img
+    # 2. 객체별 crop 정보 구하기
+    crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
+
+    # 3. 각 객체(사람)별로 스켈레톤 그린 overlay 오버레이 방식으로 합성
+    for crop_object_img, pose_detection in zip(
+            crop_object_images, stream_frame_instance.pose_detection_list):
+
+        # (1) crop 크기만큼 검정 배경 생성
+        #crop_h, crop_w = crop_object_img["crop"].shape[:2]
+        #overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
+
+        # (2) 오버레이에 스켈레톤(랜드마크) 그리기
+        pose_landmark_overlay = draw_world_landmarks_with_coordinates(
+            pose_detection, rgb_image=None)
+
+        # (3) bbox 좌표
+        x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
+
+        # (4) 원본 프레임의 해당 ROI 영역
+        roi = frame[y1_p:y2_p, x1_p:x2_p]
+        # (5) 마스크: overlay에서 검정색이 아닌 부분만 True
+        mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
+        # (6) ROI에 오버레이: mask 부분만 복사
+        roi[mask] = pose_landmark_overlay[mask]
+        # (7) (frame은 numpy view라서 자동 적용)
 
     return frame
+
 
 
 def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):

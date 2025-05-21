@@ -11,7 +11,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 
-def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, debug=False):
+def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=True, debug=False):
     """
     stream_frame_instance 에서 감지된 객체들을 padding 만큼 여백을 두고 잘라냅니다.
     - padding: 바운딩박스 주변에 추가할 픽셀 여백
@@ -25,12 +25,13 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, debug=False):
             'track_id': int or None    # tracking 경우의 ID (detection 경우 None)
         }
     """
-    # 1) 원본 프레임 복원
-    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, debug=debug
-    )
-    h, w = stream_frame_instance.height, stream_frame_instance.width
-    frame = frame.reshape((h, w, 3))
+    if need_frame:
+        # 1) 원본 프레임 복원
+        frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
+            stream_frame_instance, debug=debug
+        )
+        h, w = stream_frame_instance.height, stream_frame_instance.width
+        frame = frame.reshape((h, w, 3))
 
     crops = []
 
@@ -80,7 +81,10 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, debug=False):
             y1_p = max(y1 - padding, 0)
             x2_p = min(x2 + padding, w)
             y2_p = min(y2 + padding, h)
-            crop = frame[y1_p:y2_p, x1_p:x2_p]
+            if need_frame:
+                crop = frame[y1_p:y2_p, x1_p:x2_p]
+            else:
+                crop = None
             crop = np.asarray(crop, dtype=np.uint8)
             crops.append({
                 'crop': crop,
@@ -173,28 +177,31 @@ class PoseDetector:
         return pose_landmarker_results
 
 
-def draw_world_landmarks_with_coordinates(detection_result, rgb_image, debug=False):
+def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
     # 3D 월드 랜드마크 리스트 (list of list)
     world_landmarks_list = detection_result.pose_world_landmarks
 
-    annotated_image = np.copy(rgb_image)
-    h, w = annotated_image.shape[:2]
+    if rgb_image is None:
+        annotated_image=np.zeros((detection_result.image_size[0], detection_result.image_size[1], 3), dtype=np.uint8)
+    else:
+        annotated_image = np.copy(rgb_image)
+    #h, w = annotated_image.shape[:2]
 
     # 둘 중 하나라도 없으면 원본 반환
     if not pixel_landmarks_list or not world_landmarks_list:
-        cv2.putText(annotated_image, "Fail", (5, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 0)
+        cv2.putText(annotated_image, "Pose Fail", (5, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)
         return annotated_image
 
     #TODO: 분리 요망
     if fall_detecting_algorithm.detect_fall(detection_result):
         cv2.putText(annotated_image, "FALL", (5, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     else:
         cv2.putText(annotated_image, "NOT FALL", (5, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
     # 인물(사람)별로 순회
     for idx in range(len(pixel_landmarks_list)):
@@ -229,3 +236,4 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image, debug=Fal
         #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
     return annotated_image
+
