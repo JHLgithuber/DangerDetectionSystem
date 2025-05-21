@@ -37,7 +37,7 @@ def get_args():
 def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frames=1000):
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
-    stram_instance_dict=dict()
+    stream_instance_dict=dict()
     yolox_process=None
     mp_processes=None
 
@@ -45,13 +45,13 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         input_metadata_queue = Queue(maxsize=700)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
-            stram_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, is_file=is_file, debug=debug_mode)
+            stream_instance_dict[name]=RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue ,stream_name=name, receive_frame=1,ignore_frame=1, is_file=is_file, debug=debug_mode)
 
 
         #공유메모리 설정
         shm_objs_dict=dict()
         shm_names_dict=dict()
-        for name, instance in stram_instance_dict.items():
+        for name, instance in stream_instance_dict.items():
             shm_objs=[frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
             for shm in shm_objs: shm.buf[:] = b'\0' * instance.get_bytes()
             shm_name=[shm.name for shm in shm_objs]
@@ -80,7 +80,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         mp_processes=pose_detector.run_pose_landmarker(process_num=4, input_frame_instance_queue=after_object_detection_queue, output_frame_instance_queue=output_metadata_queue, debug=debug_mode,)
 
         #입력 스트림 실행
-        for name, instance in stram_instance_dict.items():
+        for name, instance in stream_instance_dict.items():
             instance.run_stream(shm_names_dict[name])
 
 
@@ -115,19 +115,33 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         print(f"main error: {e}")
 
     finally:
-        del stram_instance_dict
+        try:
+            # 리소스 정리
+            if stream_instance_dict:
+                del stream_instance_dict
 
-        yolox_process.terminate()
-        yolox_process.join()
+            if yolox_process:
+                yolox_process.terminate()
+                yolox_process.join(timeout=5.0)
 
-        for mp_porc in mp_processes:
-            mp_porc.terminate()
-            mp_porc.join()
+            if mp_processes:
+                for mp_proc in mp_processes:
+                    try:
+                        mp_proc.terminate()
+                        mp_proc.join(timeout=5.0)
+                    except Exception as e:
+                        print(f"프로세스 종료 중 오류: {e}")
 
+            if frame_smm_mgr:
+                frame_smm_mgr.shutdown()
+                del frame_smm_mgr
 
-        frame_smm_mgr.shutdown()
-        del frame_smm_mgr
-        sys.exit(0)
+        except Exception as e:
+            print(f"정리 중 오류 발생: {e}")
+            exit_code = 1
+
+        return exit_code  # 종료 코드 반환
+
 
 
 
@@ -138,7 +152,8 @@ if __name__ == "__main__":
     test_url_list = [
         #("LocalHost", "rtsp://localhost:8554/stream"),
         #("TestFile", "streetTestVideo3.mp4", True),
-        ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
+        ("TestFile", "streetTestVideo.mp4", True),
+        #("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         #("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         #("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
         #("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),

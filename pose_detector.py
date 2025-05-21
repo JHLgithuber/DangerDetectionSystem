@@ -19,18 +19,19 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     Returns: 리스트 of dict, each dict has:
         {
             'crop': np.ndarray,        # 잘라낸 이미지
+            'img_size': (h, w),        # 이미지 크기 (h, w)
             'class': int or str,       # 클래스 아이디 (또는 이름)
             'score': float,            # confidence 점수
             'bbox': (x1, y1, x2, y2),  # 잘라낸 영역 (with padding)
             'track_id': int or None    # tracking 경우의 ID (detection 경우 None)
         }
     """
+    h, w = stream_frame_instance.height, stream_frame_instance.width
     if need_frame:
         # 1) 원본 프레임 복원
         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
             stream_frame_instance, debug=debug
         )
-        h, w = stream_frame_instance.height, stream_frame_instance.width
         frame = frame.reshape((h, w, 3))
 
     crops = []
@@ -51,6 +52,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
             crop = np.asarray(crop, dtype=np.uint8)
             crops.append({
                 'crop': crop,
+                'img_size': (y2_p - y1_p, x2_p - x1_p),  # (h, w)
                 'class': obj["class"],
                 'score': score,
                 'bbox': (x1_p, y1_p, x2_p, y2_p),
@@ -83,11 +85,13 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
             y2_p = min(y2 + padding, h)
             if need_frame:
                 crop = frame[y1_p:y2_p, x1_p:x2_p]
+                crop = np.asarray(crop, dtype=np.uint8)
             else:
                 crop = None
-            crop = np.asarray(crop, dtype=np.uint8)
+
             crops.append({
                 'crop': crop,
+                'img_size': (y2_p - y1_p, x2_p - x1_p),  # (h, w)
                 'class': int(cls_id),
                 'score': float(score),
                 'bbox': (x1_p, y1_p, x2_p, y2_p),
@@ -177,14 +181,16 @@ class PoseDetector:
         return pose_landmarker_results
 
 
-def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, debug=False):
-    # 2D 정규화 랜드마크 리스트 (list of list)
+def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_size=None, debug=False):
+    # 2D 정규화 랜드마크 리스트 (list of list)rgb_image
     pixel_landmarks_list = detection_result.pose_landmarks
     # 3D 월드 랜드마크 리스트 (list of list)
     world_landmarks_list = detection_result.pose_world_landmarks
 
+
     if rgb_image is None:
-        annotated_image=np.zeros((detection_result.image_size[0], detection_result.image_size[1], 3), dtype=np.uint8)
+        #crop_h, crop_w = rgb_image.shape[:2]
+        annotated_image=np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
     else:
         annotated_image = np.copy(rgb_image)
     #h, w = annotated_image.shape[:2]

@@ -31,7 +31,7 @@ def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
 
         # (2) 오버레이에 스켈레톤(랜드마크) 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
-            pose_detection, rgb_image=None)
+            pose_detection, img_size=crop_object_img["img_size"],)
 
         # (3) bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
