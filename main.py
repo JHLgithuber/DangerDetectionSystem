@@ -114,13 +114,14 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
 
-            if (output_metadata_queue.empty() and
-                    not input_metadata_queue.empty() and
-                    not after_object_detection_queue.empty()):
-                print("output_metadata_queue is EMPTY")
-                for name, instance in stream_instance_dict.items():
-                    instance.startup_pass()
-                    if debug_mode: print(f"name: {name}, instance.startup_pass()")
+            #TODO: 메모리 오류유발
+            #if (output_metadata_queue.empty() and
+            #        not input_metadata_queue.empty() and
+            #        not after_object_detection_queue.empty()):
+            #    print("output_metadata_queue is EMPTY")
+            #    for name, instance in stream_instance_dict.items():
+            #        instance.startup_pass()
+            #        if debug_mode: print(f"name: {name}, instance.startup_pass()")
 
 
             # Watch Dog
