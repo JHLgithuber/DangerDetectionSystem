@@ -79,7 +79,8 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
 
     except Exception as e:
         print(f"공유 메모리 로드 중 오류: {e}")
-        return None
+        black_frame = np.zeros((stream_frame_instance.height, stream_frame_instance.width, 3), dtype=np.uint8)
+        return black_frame
         
     finally:
         # 항상 공유 메모리 연결을 닫습니다

@@ -114,13 +114,22 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
 
+            if (output_metadata_queue.empty() and
+                    not input_metadata_queue.empty() and
+                    not after_object_detection_queue.empty()):
+                print("output_metadata_queue is EMPTY")
+                for name, instance in stream_instance_dict.items():
+                    instance.startup_pass()
+                    if debug_mode: print(f"name: {name}, instance.startup_pass()")
+
+
             # Watch Dog
             if not demo_thread.is_alive():
-                raise RuntimeError("demo thread is dead")
+                raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             if not yolox_process.is_alive():
-                raise RuntimeError("yolox process is dead")
+                raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
             if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
-                raise RuntimeError("mp porc is dead")
+                raise RuntimeError("[MAIN PROC WD ERROR] mp porc is dead")
 
 
     except KeyboardInterrupt:
@@ -136,9 +145,8 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             # 리소스 정리
             if stream_instance_dict:
                 for name, instance in stream_instance_dict.items():
-                    instance.kill_stream()
-                    #print(f"name: {name}, instance.is_alive: {instance.is_alive()}")
-                    instance.join(timeout=5.0)
+                    thread=instance.kill_stream()
+                    thread.join(timeout=5.0)
                     if debug_mode: print(f"name: {name}, instance.is_alive: {instance.is_alive()}")
 
             if yolox_process:

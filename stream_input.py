@@ -21,6 +21,7 @@ class RtspStream:
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
                  ignore_frame=0, startup_max_frame_count=60, debug=False, is_file=False):
         self.startup_max_frame_count = startup_max_frame_count
+        self.startup_pass=False
         self.running = True
         self.manager_smm = None
         self.stream_start_index = None
@@ -63,7 +64,7 @@ class RtspStream:
         index = 0
         for index in range(self.startup_max_frame_count):
             if self.running is False:
-                self.__del__()
+               break
             start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
             y0 = 100  # 첫 줄의 y좌표
@@ -105,8 +106,16 @@ class RtspStream:
             index = (index + 1) % len(self.manager_smm)
             print(f"stream start up... {index}")
             self.metadata_queue.put(stream_frame_instance)
-            time.sleep(max((self.startup_max_frame_count - index) / 4, 0.5))
+            if self.startup_pass is False:
+                time.sleep(3)
+            else:
+                time.sleep(0.3)
         return index
+
+    def startup_pass(self):
+        self.startup_pass=True
+        print(f"{self.stream_name}startup PASS")
+
 
     def run_stream(self, manager_smm,):
         self.manager_smm = manager_smm
@@ -136,11 +145,12 @@ class RtspStream:
             bypass_frame,
             receive_frame,
             ignore_frame,
+            start_index,
     ):
-        index = self._stream_slow_starting_up()
         bypassed_count = 0
         received_count = receive_frame
         ignore_count = 0
+        index = start_index
 
         for frame in frame_iterator:
             if self.running is False:
@@ -193,12 +203,13 @@ class RtspStream:
     def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
                                 receive_frame, ignore_frame, ):
         try:
+            start_index = self._stream_slow_starting_up()
             print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
             container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
             frame_iterator = container.decode(video=0)
             self._process_frames_common(
                 frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                ignore_frame,
+                ignore_frame, start_index,
             )
         except Exception as e:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
@@ -206,6 +217,7 @@ class RtspStream:
     def _update_frame_from_file(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
                                 receive_frame, ignore_frame,):
         try:
+            start_index = self._stream_slow_starting_up()
             while True:
                 if self.running is False:
                     break
@@ -214,23 +226,17 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame,
+                    ignore_frame, start_index,
                 )
                 print("endVideo")
                 container.close()
+                index =0
         except Exception as e:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
 
     def kill_stream(self):
         self.running = False
-        self.stream_thread.join()
-        self.__del__()
-
-    def __del__(self):
-        if self.stream_thread.is_alive():
-            self.running = False
-            self.stream_thread.join()
-            self.metadata_queue.put(None)
+        return self.stream_thread
 
 
 if __name__ == "__main__":
