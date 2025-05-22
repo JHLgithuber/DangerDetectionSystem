@@ -112,20 +112,25 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
             'score': float,            # confidence 점수
     """
     pose_landmarker = PoseDetector(current_process_name=current_process().name, debug=debug)
-    while True:
-        stream_frame_instance = input_frame_instance_queue.get()
-        if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
-        if stream_frame_instance is None:
-            break
-        pose_landmarker_results = pose_landmarker.detect(stream_frame_instance, debug=debug)
-        if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
-        stream_frame_instance.pose_detection_list=pose_landmarker_results
-        output_frame_instance_queue.put(stream_frame_instance)
+    try:
+        while True:
+            stream_frame_instance = input_frame_instance_queue.get()
+            if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
+            if stream_frame_instance is None:
+                break
+            pose_landmarker_results = pose_landmarker.detect(stream_frame_instance, debug=debug)
+            if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
+            stream_frame_instance.pose_detection_list=pose_landmarker_results
+            output_frame_instance_queue.put(stream_frame_instance)
+    except KeyboardInterrupt:
+        print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")
+    except Exception as e:
+        print(f"[ERROR] pose_landmarker process: {e}")
 
 def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, process_num=8, debug=False):
     processes=list()
     for i in range(process_num):
-        process = Process(name= f"PoseLandmarker-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, debug))
+        process = Process(name= f"_pose_landmarker_process-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, debug))
         process.daemon = True
         process.start()
         if debug: print(f"[DEBUG] pose_landmarker process {i} start")

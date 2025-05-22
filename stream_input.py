@@ -5,6 +5,7 @@ import uuid
 from multiprocessing import Manager
 
 import cv2
+from torch.utils.jit.log_extract import run_nnc
 
 import dataclass_for_StreamFrameInstance
 from threading import Thread
@@ -16,101 +17,13 @@ import demo_viewer
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 
-def _process_frames_common(
-        frame_iterator,
-        stream_name,
-        shm_names,
-        metadata_queue,
-        debug,
-        bypass_frame,
-        receive_frame,
-        ignore_frame,
-        stream_start_index,
-):
-    bypassed_count = 0
-    received_count = receive_frame
-    ignore_count = 0
-    index = stream_start_index
-
-    for frame in frame_iterator:
-        raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
-
-        if ignore_count > 0:
-            ignore_count -= 1
-            if ignore_count == 0:
-                received_count = receive_frame
-            if debug: print(f"[{stream_name}] 무시")
-            continue
-
-        if debug: print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
-
-        if bypassed_count < bypass_frame:
-            bypassed_count += 1
-            bypass_flag = True
-        else:
-            bypass_flag = False
-            bypassed_count = 0
-
-        memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
-            frame=raw_stream_view,
-            shm_name=shm_names[index],
-            debug=debug
-        )
-        if memory_name is None:
-            continue
-
-        stream_frame_instance = StreamFrameInstance(
-            stream_name=stream_name,
-            frame_index=index,
-            memory_name=memory_name,
-            height=raw_stream_view.shape[0],
-            width=raw_stream_view.shape[1],
-            bypass_flag=bypass_flag,
-        )
-
-        index = (index + 1) % len(shm_names)
-        received_count -= 1
-        if received_count <= 0:
-            ignore_count = ignore_frame
-
-        if metadata_queue.full():
-            metadata_queue.get()
-        metadata_queue.put(stream_frame_instance)
-        time.sleep(1 / 30)
-
-
-def _update_frame_from_rtsp(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index, ):
-    try:
-        print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
-        container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
-        frame_iterator = container.decode(video=0)
-        _process_frames_common(
-            frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index,
-        )
-    except Exception as e:
-        print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
-
-
-def _update_frame_from_file(rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index):
-    try:
-        while True:
-            print(f"[INFO] Video File: {rtsp_url} will OPEN")
-            container = av.open(rtsp_url)
-            frame_iterator = container.decode(video=0)
-            _process_frames_common(
-                frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame, ignore_frame, stream_start_index
-            )
-            print("endVideo")
-            container.close()
-    except Exception as e:
-        print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
-
-
 class RtspStream:
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
-                 ignore_frame=0, debug=False, is_file=False):
+                 ignore_frame=0, startup_max_frame_count=60, debug=False, is_file=False):
+        self.startup_max_frame_count = startup_max_frame_count
+        self.running = True
         self.manager_smm = None
-        self.stream_start_index=None
+        self.stream_start_index = None
         self.stream_thread = None
         self.rtsp_url = rtsp_url
         self.is_file = is_file
@@ -147,15 +60,14 @@ class RtspStream:
         return self.bytes
 
     def _stream_slow_starting_up(self):
-        start_percent = 0
         index = 0
-        max_frame_count = 20
-        empty_frame = None
-        for index in range(max_frame_count):
-            start_percent=index/max_frame_count*100
+        for index in range(self.startup_max_frame_count):
+            if self.running is False:
+                self.__del__()
+            start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
-            y0 = 100     # 첫 줄의 y좌표
-            dy = 80      # 줄 간 간격 (원하는 만큼 조절)
+            y0 = 100  # 첫 줄의 y좌표
+            dy = 80  # 줄 간 간격 (원하는 만큼 조절)
             lines = [
                 "Hello!",
                 "Processing stream is starting up...",
@@ -193,33 +105,132 @@ class RtspStream:
             index = (index + 1) % len(self.manager_smm)
             print(f"stream start up... {index}")
             self.metadata_queue.put(stream_frame_instance)
-            time.sleep(max((max_frame_count-index)/4,0.5))
+            time.sleep(max((self.startup_max_frame_count - index) / 4, 0.5))
         return index
 
-
-    def run_stream(self, manager_smm):
-        self.manager_smm=manager_smm
-        self.stream_start_index= self._stream_slow_starting_up()
+    def run_stream(self, manager_smm,):
+        self.manager_smm = manager_smm
         if not self.is_file:
-            self.stream_thread = Thread(target=_update_frame_from_rtsp, name=self.stream_name,
-                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue, self.debug,
-                                              self.bypass_frame, self.receive_frame, self.ignore_frame, self.stream_start_index,))
+            self.stream_thread = Thread(target=self._update_frame_from_rtsp, name=self.stream_name,
+                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
+                                              self.debug,
+                                              self.bypass_frame, self.receive_frame, self.ignore_frame,
+                                              ))
         else:
-            self.stream_thread = Thread(target=_update_frame_from_file, name=self.stream_name,
-                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue, self.debug,
-                                                  self.bypass_frame, self.receive_frame, self.ignore_frame, self.stream_start_index,))
+            self.stream_thread = Thread(target=self._update_frame_from_file, name=self.stream_name,
+                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
+                                              self.debug,
+                                              self.bypass_frame, self.receive_frame, self.ignore_frame,
+                                              ))
         self.stream_thread.daemon = True
         self.stream_thread.start()
         return self.stream_thread
 
+    def _process_frames_common(
+            self,
+            frame_iterator,
+            stream_name,
+            shm_names,
+            metadata_queue,
+            debug,
+            bypass_frame,
+            receive_frame,
+            ignore_frame,
+    ):
+        index = self._stream_slow_starting_up()
+        bypassed_count = 0
+        received_count = receive_frame
+        ignore_count = 0
+
+        for frame in frame_iterator:
+            if self.running is False:
+                break
+            raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
+
+            if ignore_count > 0:
+                ignore_count -= 1
+                if ignore_count == 0:
+                    received_count = receive_frame
+                if debug: print(f"[{stream_name}] 무시")
+                continue
+
+            if debug: print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
+
+            if bypassed_count < bypass_frame:
+                bypassed_count += 1
+                bypass_flag = True
+            else:
+                bypass_flag = False
+                bypassed_count = 0
+
+            memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(
+                frame=raw_stream_view,
+                shm_name=shm_names[index],
+                debug=debug
+            )
+            if memory_name is None:
+                continue
+
+            stream_frame_instance = StreamFrameInstance(
+                stream_name=stream_name,
+                frame_index=index,
+                memory_name=memory_name,
+                height=raw_stream_view.shape[0],
+                width=raw_stream_view.shape[1],
+                bypass_flag=bypass_flag,
+            )
+
+            index = (index + 1) % len(shm_names)
+            received_count -= 1
+            if received_count <= 0:
+                ignore_count = ignore_frame
+
+            if metadata_queue.full():
+                metadata_queue.get()
+            metadata_queue.put(stream_frame_instance)
+            time.sleep(1 / 30)
+
+    def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
+                                receive_frame, ignore_frame, ):
+        try:
+            print(f"[INFO] RTSP URL: {rtsp_url} will OPEN")
+            container = av.open(rtsp_url, options={'rtsp_transport': 'tcp'})
+            frame_iterator = container.decode(video=0)
+            self._process_frames_common(
+                frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
+                ignore_frame,
+            )
+        except Exception as e:
+            print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
+
+    def _update_frame_from_file(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
+                                receive_frame, ignore_frame,):
+        try:
+            while True:
+                if self.running is False:
+                    break
+                print(f"[INFO] Video File: {rtsp_url} will OPEN")
+                container = av.open(rtsp_url)
+                frame_iterator = container.decode(video=0)
+                self._process_frames_common(
+                    frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
+                    ignore_frame,
+                )
+                print("endVideo")
+                container.close()
+        except Exception as e:
+            print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
+
     def kill_stream(self):
+        self.running = False
+        self.stream_thread.join()
         self.__del__()
 
     def __del__(self):
         if self.stream_thread.is_alive():
+            self.running = False
+            self.stream_thread.join()
             self.metadata_queue.put(None)
-            # TODO: 파이프로 스트림종료 명시
-            # self.stream_thread.join()
 
 
 if __name__ == "__main__":

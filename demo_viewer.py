@@ -211,7 +211,7 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
-                process = Process(target=_update_imshow_process,
+                process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
                 # process.daemon = True
                 stream_viewer_process_set.add(process)
@@ -234,7 +234,7 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
 
 
 def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
-    imshow_demo_thread = Thread(target=_show_imshow_demo, args=(stream_queue, show_latency, debug))
+    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread

@@ -148,8 +148,8 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
     waiting_instance_dict = dict()
 
     try:
-        for _ in range(worker_num):
-            inference_worker_process = Process(target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+        for index in range(worker_num):
+            inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
             inference_worker_process.daemon = True
             inference_worker_process.start()
             if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
@@ -230,6 +230,7 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     )
 
     imageflow_demo_process = Process(
+        name="imageflow_demo_MAIN_process",
         target=imageflow_demo,
         args=(predictor, args, stream_queue, return_queue, process_num, all_object, debug_mode)
     )

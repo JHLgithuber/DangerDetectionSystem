@@ -87,7 +87,7 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
             shm.close()
 
 
-def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=10, debug=False,):
+def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=30, debug=False,):
     """
     시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
     
@@ -105,7 +105,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
     while True:
         # 큐에서 데이터 가져오기
         try:
-            instance = messy_frame_instance_queue.get(timeout=0.1)
+            instance = messy_frame_instance_queue.get(timeout=0.5)
             
             # 스트림별로 분리하여 버퍼링
             stream_buffers[instance.stream_name].append(instance)

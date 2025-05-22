@@ -36,7 +36,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_frames=1000):
+def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frames=1000):
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
     stream_instance_dict = dict()
@@ -51,12 +51,17 @@ def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_fram
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
 
+        stream_many=len(url_list)
+
         # 입력 스트림 초기화
-        input_metadata_queue = Queue(maxsize=700)
+        input_metadata_queue = Queue(maxsize=60*stream_many)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
-                                                    receive_frame=1, ignore_frame=0, is_file=is_file, debug=debug_mode)
+                                                    receive_frame=1, ignore_frame=0,
+                                                    startup_max_frame_count=200//logical_cores,
+                                                    is_file=is_file, debug=debug_mode)
+        print(f"stream_many: {stream_many}")
 
         # 공유메모리 설정
         shm_objs_dict = dict()
@@ -71,13 +76,13 @@ def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_fram
             # if debug_mode: print(shm_objs)
 
         # 출력 스트림 설정
-        output_metadata_queue = Queue(maxsize=10)
+        output_metadata_queue = Queue(maxsize=3*stream_many)
         demo_thread = start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         # YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue = Queue(maxsize=100)
+        after_object_detection_queue = Queue(maxsize=20*stream_many)
         yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
@@ -93,7 +98,7 @@ def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_fram
 
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
-            instance.run_stream(shm_names_dict[name])
+            instance.run_stream(shm_names_dict[name],)
 
         # 뭔가 프로세싱
         # while True:
@@ -130,7 +135,11 @@ def main(url_list, debug_mode=False, show_mode=True, show_latency=True, max_fram
         try:
             # 리소스 정리
             if stream_instance_dict:
-                del stream_instance_dict
+                for name, instance in stream_instance_dict.items():
+                    instance.kill_stream()
+                    #print(f"name: {name}, instance.is_alive: {instance.is_alive()}")
+                    instance.join(timeout=5.0)
+                    if debug_mode: print(f"name: {name}, instance.is_alive: {instance.is_alive()}")
 
             if yolox_process:
                 yolox_process.terminate()
