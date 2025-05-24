@@ -4,6 +4,7 @@ import numpy as np
 import math
 import numpy as np
 
+
 def detect_fall_normalized(lm2d_list):
     # 2D 정규화 좌표 기반으로 모든 계산
     left_shoulder = lm2d_list[11]
@@ -14,11 +15,6 @@ def detect_fall_normalized(lm2d_list):
     right_knee = lm2d_list[26]
     left_ankle = lm2d_list[27]
     right_ankle = lm2d_list[28]
-
-    # 신뢰도 체크(선택사항)
-    for lm in [left_shoulder, right_shoulder, left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle]:
-        if hasattr(lm, 'visibility') and lm.visibility < 0.5:
-            return (False, None)
 
     # 중앙점 계산 (정규화 좌표)
     mid_shoulder_x = (left_shoulder.x + right_shoulder.x) / 2.0
@@ -31,12 +27,12 @@ def detect_fall_normalized(lm2d_list):
     # 척추 벡터 및 길이 (정규화)
     spine_vec_x = mid_hip_x - mid_shoulder_x
     spine_vec_y = mid_hip_y - mid_shoulder_y
-    spine_length = (spine_vec_x**2 + spine_vec_y**2)**0.5
+    spine_length = (spine_vec_x ** 2 + spine_vec_y ** 2) ** 0.5
 
     # 허리 폭 (정규화)
     waist_vec_x = right_hip.x - left_hip.x
     waist_vec_y = right_hip.y - left_hip.y
-    waist_width = (waist_vec_x**2 + waist_vec_y**2)**0.5
+    waist_width = (waist_vec_x ** 2 + waist_vec_y ** 2) ** 0.5
 
     # 척추 대 허리 비율
     spine_ratio = spine_length / waist_width if waist_width > 1e-6 else float('inf')
@@ -73,7 +69,20 @@ def detect_fall_normalized(lm2d_list):
 
     return (is_fall_final, fall_direction)
 
-
+def check_visibility_presence(lm2d_list):
+    check_point_list=list()
+    check_point_list.append(lm2d_list[11])  #left_shoulder
+    check_point_list.append(lm2d_list[12])  #right_shoulder
+    check_point_list.append(lm2d_list[23])  #left_hip
+    check_point_list.append(lm2d_list[24])  #right_hip
+    check_point_list.append(lm2d_list[25])  #left_knee
+    check_point_list.append(lm2d_list[26])  #right_knee
+    check_point_list.append(lm2d_list[27])  #left_ankle
+    check_point_list.append(lm2d_list[28])  #right_ankle
+    for lm in check_point_list:
+        if not (hasattr(lm, 'visibility') and lm.visibility > 0.5 and hasattr(lm, 'presence') and lm.presence > 0.6):
+            return False
+    return True
 
 def detect_fall(detection_result, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)
@@ -88,6 +97,10 @@ def detect_fall(detection_result, debug=False):
         lm2d_list = pixel_landmarks_list[idx]
         if not lm2d_list:
             continue
+        else:
+            if not check_visibility_presence(lm2d_list):
+                return None
+
 
         result = detect_fall_normalized(lm2d_list)
         if result[0]:  # is_fall이 True인 경우
@@ -100,8 +113,6 @@ def detect_fall(detection_result, debug=False):
         else:
             print("넘어짐 없음: 정상 자세")
 
-
-
         if result[0]:
             if debug: print("FALL DETECTED")
             return True
@@ -111,8 +122,9 @@ def detect_fall(detection_result, debug=False):
 
     return None
 
+
 if __name__ == "__main__":
     left_ankle_lm = landmark_pb2.Landmark(x=0.2, y=0, z=0.3, presence=1.0)
     right_ankle_lm = landmark_pb2.Landmark(x=-0.8, y=0, z=-0.3, presence=1.0)
 
-    #_is_center_in_ellipse(left_ankle_lm, right_ankle_lm, margin_ratio=1.2, debug=True)
+    # _is_center_in_ellipse(left_ankle_lm, right_ankle_lm, margin_ratio=1.2, debug=True)

@@ -207,7 +207,11 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         return annotated_image
 
     #TODO: 분리 요망
-    if fall_detecting_algorithm.detect_fall(detection_result):
+    detection_result=fall_detecting_algorithm.detect_fall(detection_result)
+    if detection_result is None:
+        cv2.putText(annotated_image, "Conf Fail", (5, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)
+    elif detection_result is True:
         cv2.putText(annotated_image, "FALL", (5, 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     else:
@@ -216,6 +220,8 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
 
     # 인물(사람)별로 순회
     for idx in range(len(pixel_landmarks_list)):
+        if detection_result is None:
+            continue
         lm2d_list = pixel_landmarks_list[idx]
         lm3d_list = world_landmarks_list[idx]
         if not lm2d_list or not lm3d_list:

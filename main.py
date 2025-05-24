@@ -179,7 +179,7 @@ if __name__ == "__main__":
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
         # ("TestFile", "streetTestVideo3.mp4", True),
-        ("TestFile", "streetTestVideo3.mp4", True),
+        ("TestFile", "streetTestVideo.mp4", True),
         # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),

@@ -186,6 +186,8 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
             except queue.Empty:
                 continue
     
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt")
     finally:
         for inference_worker_process in inference_worker_set:
             inference_worker_process.terminate()
