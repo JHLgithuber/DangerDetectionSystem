@@ -44,7 +44,7 @@ def consumer(shm_names, queue, frame_shape):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    video_path = "../streetTestVideo.mp4"   # 사용할 동영상 파일 경로
+    video_path = "../data_for_test/streetTestVideo4.mp4"  # 사용할 동영상 파일 경로
     max_frames = 100
 
     # --- 1) 첫 프레임으로 크기 확인 ---

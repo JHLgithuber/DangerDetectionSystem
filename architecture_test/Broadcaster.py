@@ -5,7 +5,7 @@ import cv2
 TARGET_WIDTH = 960
 TAREGET_HEIGHT= 540
 TARGET_DEPTH = 3
-video_path = '../streetTestVideo.mp4'
+video_path = '../data_for_test/streetTestVideo4.mp4'
 
 sample_array = np.zeros((TAREGET_HEIGHT, TARGET_WIDTH, TARGET_DEPTH), dtype=np.uint8)  # (600768,)
 stream_shm = shared_memory.SharedMemory(name ='shm',create=True, size=sample_array.nbytes)

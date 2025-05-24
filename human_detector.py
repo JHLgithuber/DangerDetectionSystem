@@ -245,7 +245,7 @@ def get_args():
         demo="video",
         experiment_name=None,
         name="yolox-s",
-        path="streetTestVideo.mp4",
+        path="data_for_test/streetTestVideo4.mp4",
         camid=0,
         show_result=True,
         exp_file=None,
