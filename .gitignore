@@ -362,3 +362,8 @@ cython_debug/
 /yolox_x.pth
 /yolox_s.pth
 data_for_test/
+/pose_landmarker.task
+/YOLOX/
+/.idea/codeStyles/codeStyleConfig.xml
+/image.jpg
+/.idea/runConfigurations/main.xml

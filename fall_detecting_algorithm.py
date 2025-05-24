@@ -2,7 +2,6 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 import math
-import numpy as np
 
 
 def detect_fall_normalized(lm2d_list):

@@ -114,15 +114,6 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
 
-            #TODO: 메모리 오류유발
-            #if (output_metadata_queue.empty() and
-            #        not input_metadata_queue.empty() and
-            #        not after_object_detection_queue.empty()):
-            #    print("output_metadata_queue is EMPTY")
-            #    for name, instance in stream_instance_dict.items():
-            #        instance.startup_pass()
-            #        if debug_mode: print(f"name: {name}, instance.startup_pass()")
-
 
             # Watch Dog
             if not demo_thread.is_alive():
@@ -143,22 +134,24 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
     finally:
         exit_code=0
         try:
+            if yolox_process:
+                yolox_process.terminate()
+                yolox_process.join(timeout=5.0)
+
             # 리소스 정리
             if stream_instance_dict:
                 for name, instance in stream_instance_dict.items():
                     thread=instance.kill_stream()
                     thread.join(timeout=5.0)
-                    if debug_mode: print(f"name: {name}, instance.is_alive: {instance.is_alive()}")
+                    print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if yolox_process:
-                yolox_process.terminate()
-                yolox_process.join(timeout=5.0)
 
             if mp_processes:
                 for mp_proc in mp_processes:
                     try:
                         mp_proc.terminate()
                         mp_proc.join(timeout=5.0)
+                        print(f"mp_proc.is_alive: {mp_proc.is_alive()}")
                     except Exception as e:
                         print(f"프로세스 종료 중 오류: {e}")
 
@@ -166,11 +159,15 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
 
+                print("See you later!")
+
         except Exception as e:
             print(f"정리 중 오류 발생: {e}")
             exit_code = 1
 
-        return exit_code  # 종료 코드 반환
+        finally:
+            print("main end")
+            return exit_code
 
 
 if __name__ == "__main__":
@@ -178,10 +175,10 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        ("TestFile_1", "data_for_test/streetTestVideo.mp4", True),
-        ("TestFile_2", "data_for_test/streetTestVideo2.mp4", True),
-        ("TestFile_3", "data_for_test/streetTestVideo3.mp4", True),
-        ("TestFile_4", "data_for_test/streetTestVideo4.mp4", True),
+        #("TestFile_1", "./data_for_test/streetTestVideo.mp4", True),
+        ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
+        #("TestFile_3", "./data_for_test/streetTestVideo3.mp4", True),
+        ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", True),
         # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
