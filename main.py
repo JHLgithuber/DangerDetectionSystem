@@ -8,7 +8,7 @@ import cv2
 import pose_detector
 import dataclass_for_StreamFrameInstance
 import human_detector
-# from queue import Queue
+import tracker
 from stream_input import RtspStream
 from demo_viewer import start_imshow_demo
 import sys
@@ -88,11 +88,12 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         yolox_process.start()
 
         # Sort before Tracking
-        # TODO: 귀찮음
+        after_tracker_queue = Queue(maxsize=20*stream_many)
+        tracker_process = tracker.run_tracker_worker(after_object_detection_queue, after_tracker_queue, debug_mode)
 
         # Pose Estimation
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
-                                                         input_frame_instance_queue=after_object_detection_queue,
+                                                         input_frame_instance_queue=after_tracker_queue,
                                                          output_frame_instance_queue=output_metadata_queue,
                                                          debug=debug_mode, )
 
@@ -113,6 +114,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if input_metadata_queue.full(): print("input_metadata_queue is FULL")
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
+            if after_tracker_queue.full(): print("after_tracker_queue is FULL")
 
 
             # Watch Dog
@@ -120,6 +122,8 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             if not yolox_process.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
+            if not tracker_process.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] tracker process is dead")
             if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
                 raise RuntimeError("[MAIN PROC WD ERROR] mp porc is dead")
 

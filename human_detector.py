@@ -142,7 +142,7 @@ class Predictor(object):
 
 
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False,):
-    inference_worker_set = set()
+    inference_worker_list = list()
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
     waiting_instance_dict = dict()
@@ -153,7 +153,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
             inference_worker_process.daemon = True
             inference_worker_process.start()
             if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
-            inference_worker_set.add(inference_worker_process)
+            inference_worker_list.append(inference_worker_process)
     
         while True:
             try:
@@ -181,6 +181,17 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                         return_queue.put(output_frame_instance)
                     else:
                         logger.info("output_dict id not found")
+
+                for index, inference_worker_process in enumerate(inference_worker_list):
+                    if not inference_worker_process.is_alive():
+                        logger.info(f"inference_worker_process {inference_worker_process.pid} is dead")
+                        inference_worker_process.terminate()
+                        inference_worker_process.join()
+                        logger.info(f"inference_worker_process {inference_worker_process.pid} terminated")
+                        inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+                        inference_worker_process.daemon = True
+                        inference_worker_process.start()
+                        if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
     
     
             except queue.Empty:
