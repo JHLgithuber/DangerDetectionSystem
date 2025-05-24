@@ -359,6 +359,6 @@ cython_debug/
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/vcs.xml
 /YOLOX_outputs/
-/streetTestVideo.mp4
 /yolox_x.pth
 /yolox_s.pth
+data_for_test/

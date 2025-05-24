@@ -19,7 +19,7 @@ def get_args():
         demo="video",
         experiment_name=None,
         name="yolox-x",
-        path="streetTestVideo.mp4",
+        path="data_for_test/streetTestVideo4.mp4",
         camid=0,
         show_result=True,
         exp_file=None,
@@ -178,8 +178,10 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        # ("TestFile", "streetTestVideo3.mp4", True),
-        ("TestFile", "streetTestVideo.mp4", True),
+        ("TestFile_1", "data_for_test/streetTestVideo.mp4", True),
+        ("TestFile_2", "data_for_test/streetTestVideo2.mp4", True),
+        ("TestFile_3", "data_for_test/streetTestVideo3.mp4", True),
+        ("TestFile_4", "data_for_test/streetTestVideo4.mp4", True),
         # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),

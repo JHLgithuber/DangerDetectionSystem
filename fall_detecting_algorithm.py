@@ -69,6 +69,7 @@ def detect_fall_normalized(lm2d_list):
 
     return (is_fall_final, fall_direction)
 
+#신뢰도 검사
 def check_visibility_presence(lm2d_list):
     check_point_list=list()
     check_point_list.append(lm2d_list[11])  #left_shoulder
@@ -80,7 +81,7 @@ def check_visibility_presence(lm2d_list):
     check_point_list.append(lm2d_list[27])  #left_ankle
     check_point_list.append(lm2d_list[28])  #right_ankle
     for lm in check_point_list:
-        if not (hasattr(lm, 'visibility') and lm.visibility > 0.5 and hasattr(lm, 'presence') and lm.presence > 0.6):
+        if not (hasattr(lm, 'visibility') and lm.visibility > 0.0 and hasattr(lm, 'presence') and lm.presence > 0.8):
             return False
     return True
 
