@@ -166,7 +166,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             exit_code = 1
 
         finally:
-            print("main end")
+            print("main END...")
             return exit_code
 
 
@@ -176,9 +176,13 @@ if __name__ == "__main__":
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
         #("TestFile_1", "./data_for_test/streetTestVideo.mp4", True),
-        ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
+        #("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
         #("TestFile_3", "./data_for_test/streetTestVideo3.mp4", True),
         ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", True),
+        #("Image_1", "./data_for_test/imageByCG.png", True),
+        #("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
+        #("Image_3", "data_for_test/pose_demo_3p.png", True),
+        #("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
         # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
