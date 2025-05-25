@@ -68,7 +68,6 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
 
     return (is_fallen, fall_direction)
 
-
 def detect_fall_normalized(lm2d_list):
     # 2D 정규화 좌표 기반으로 모든 계산
     left_shoulder = lm2d_list[11]
