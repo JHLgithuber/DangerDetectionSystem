@@ -1,6 +1,7 @@
 name: DangerDetectionSystem
 channels:
   - conda-forge
+  - pytorch
   - https://repo.anaconda.com/pkgs/main
   - https://repo.anaconda.com/pkgs/r
 dependencies:
