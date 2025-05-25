@@ -33,6 +33,10 @@ def _fall_worker(in_q: Queue, out_q: Queue,
         current_data = []
         fall_flags = []
 
+        if frame.pose_detection_list is None:
+            print(f"[Fall_IoU] {name}pose_detection_list is None")
+            continue
+
         for i, crop in enumerate(crops):
             bbox = tuple(crop['bbox'])
             pose_det = frame.pose_detection_list[i]
@@ -47,6 +51,7 @@ def _fall_worker(in_q: Queue, out_q: Queue,
                         if past['is_flag']:
                             fall_cnt += 1
 
+
             # 매칭된 프레임 중 fall 비율로 최종 판단
             if match_cnt > 0 and (fall_cnt/match_cnt) >= fall_ratio_thresh:
                 fall_flags.append(True)
@@ -56,6 +61,7 @@ def _fall_worker(in_q: Queue, out_q: Queue,
                 if debug: print(f"[Fall_IoU] {name} idx={i} Not FALL")
 
             current_data.append({'bbox': bbox, 'is_flag': is_flag})
+            if debug: print(f"[Fall_IoU] current_data=> {name} idx={i} is_flag={is_flag}")
 
         # 버퍼에 추가하고 결과 저장
         history.append(current_data)

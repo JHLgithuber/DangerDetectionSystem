@@ -12,6 +12,45 @@ import dataclass_for_StreamFrameInstance
 from yolox.utils import vis
 from yolox.data.datasets import COCO_CLASSES
 
+def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
+    # 1. 원본 프레임 불러오기
+    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
+        stream_frame_instance, debug=True)
+    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
+
+    # 2. 객체별 crop 정보 구하기
+    crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
+
+    # 3. 각 객체(사람)별로 스켈레톤 그린 overlay 오버레이 방식으로 합성
+    for crop_object_img, pose_detection, fall_flag in zip(
+            crop_object_images, stream_frame_instance.pose_detection_list, stream_frame_instance.fall_flag_list):
+        # (1) crop 크기만큼 검정 배경 생성
+        # crop_h, crop_w = crop_object_img["crop"].shape[:2]
+        # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
+
+        # (2) 오버레이에 스켈레톤(랜드마크) 그리기
+        pose_landmark_overlay = draw_world_landmarks_with_coordinates(
+            pose_detection, img_size=crop_object_img["img_size"], )
+
+        if fall_flag:
+            cv2.putText(pose_landmark_overlay, "FALL by IoU", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        else:
+            cv2.putText(pose_landmark_overlay, "NOT FALL by IoU", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        # (3) bbox 좌표
+        x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
+
+        # (4) 원본 프레임의 해당 ROI 영역
+        roi = frame[y1_p:y2_p, x1_p:x2_p]
+        # (5) 마스크: overlay에서 검정색이 아닌 부분만 True
+        mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
+        # (6) ROI에 오버레이: mask 부분만 복사
+        roi[mask] = pose_landmark_overlay[mask]
+        # (7) (frame은 numpy view라서 자동 적용)
+
+    return frame
+
+
 
 def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
     # 1. 원본 프레임 불러오기
@@ -158,7 +197,12 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
             if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.pose_detection_list is not None:
+                if instances_per_frame_instance.fall_flag_list is not None:
+                    result_frame = visual_from_fall_flag(
+                    stream_frame_instance=instances_per_frame_instance,
+                    cls_conf=0.35
+                )
+                elif instances_per_frame_instance.pose_detection_list is not None:
                     result_frame = visual_from_pose_estimation(
                         stream_frame_instance=instances_per_frame_instance,
                         cls_conf=0.35
