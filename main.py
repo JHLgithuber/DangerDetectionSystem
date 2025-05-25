@@ -82,13 +82,13 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         # YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue = Queue(maxsize=20*stream_many)
+        after_object_detection_queue = Queue(maxsize=10*stream_many)
         yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
         # Sort before Tracking
-        after_tracker_queue = Queue(maxsize=20*stream_many)
+        after_tracker_queue = Queue(maxsize=10*stream_many)
         tracker_process = tracker.run_tracker_worker(after_object_detection_queue, after_tracker_queue, debug_mode)
 
         # Pose Estimation

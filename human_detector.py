@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii, Inc. and its affiliates.
 import multiprocessing
+from threading import Thread
 import uuid
 import argparse
 import os
@@ -149,10 +150,10 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
 
     try:
         for index in range(worker_num):
-            inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+            inference_worker_process = Thread(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
             inference_worker_process.daemon = True
             inference_worker_process.start()
-            if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
+            if debug_mode: print(f"inference_worker_process {inference_worker_process.name} start")
             inference_worker_list.append(inference_worker_process)
     
         while True:
@@ -182,16 +183,16 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                     else:
                         logger.info("output_dict id not found")
 
-                for index, inference_worker_process in enumerate(inference_worker_list):
-                    if not inference_worker_process.is_alive():
-                        logger.info(f"inference_worker_process {inference_worker_process.pid} is dead")
-                        inference_worker_process.terminate()
-                        inference_worker_process.join()
-                        logger.info(f"inference_worker_process {inference_worker_process.pid} terminated")
-                        inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
-                        inference_worker_process.daemon = True
-                        inference_worker_process.start()
-                        if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
+                #for index, inference_worker_process in enumerate(inference_worker_list):
+                #    if not inference_worker_process.is_alive():
+                #        logger.info(f"inference_worker_process {inference_worker_process.name} is dead")
+                #        inference_worker_process.terminate()
+                #        inference_worker_process.join()
+                #        logger.info(f"inference_worker_process {inference_worker_process.name} terminated")
+                #        inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+                #        inference_worker_process.daemon = True
+                #        inference_worker_process.start()
+                #        if debug_mode: print(f"inference_worker_process {inference_worker_process.name} start")
     
     
             except queue.Empty:
@@ -200,7 +201,7 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt")
     finally:
-        for inference_worker_process in inference_worker_set:
+        for inference_worker_process in inference_worker_list:
             inference_worker_process.terminate()
             inference_worker_process.join()
         logger.info("inference_worker_process terminated")

@@ -26,6 +26,8 @@ def _tracker_worker(messy_input_queue, output_queue, debug):
     sorted_frame_gen = sorter(messy_input_queue, debug=debug)
     while True:
         frame_inst = next(sorted_frame_gen)  # dataclass_for_StreamFrameInstance 인스턴스
+        #frame_inst = messy_input_queue.get()
+        if debug: print(f"[Tracker] received frame_inst: {frame_inst}")
         name = frame_inst.stream_name
 
         # ① 스트림별로 트래커 초기화
@@ -35,7 +37,7 @@ def _tracker_worker(messy_input_queue, output_queue, debug):
                 det_thresh=0.5,
                 max_age=30,
                 iou_threshold=0.7,
-                # with_reid=False
+                #with_reid=False
             )
             if debug: print(f"[Tracker:{name}] init")
         tracker = trackers[name]
@@ -43,15 +45,28 @@ def _tracker_worker(messy_input_queue, output_queue, debug):
         # ② detection numpy → [x1,y1,x2,y2,score] 배열로 변환
         dets_np = frame_inst.human_detection_numpy
         if dets_np is None or len(dets_np) == 0:
-            dets = np.zeros((0, 5), dtype=float)
+            output_queue.put(frame_inst)
+            continue
+        elif dets_np.shape[1] >= 6:
+            boxes = dets_np[:, :4]  # (x1,y1,x2,y2)
+            obj_conf = dets_np[:, 4]
+            class_conf = dets_np[:, 5]
+            scores = obj_conf * class_conf
+
+            dets = np.hstack([boxes, scores[:, None]])
         else:
-            boxes = dets_np[:, :4]
-            scores = (dets_np[:, 4] * dets_np[:, 5]).astype(float)
-            dets = np.hstack([boxes, scores[:, None]])  # shape (N,5)
+            raise ValueError(f"Unexpected dets_np shape: {dets_np.shape}")
+
 
         # ③ tracker.update → tracks: (M,6) [x1,y1,x2,y2,track_id,score]
         img_size = (frame_inst.height, frame_inst.width)
-        tracks = tracker.update(dets, img_size, img_size)
+        try:
+            tracks = tracker.update(dets, img_size, img_size)
+        except Exception as e:
+            print(f"[Tracker:{name}] update error: {e}")
+            frame_inst.human_tracking_serial = None
+            output_queue.put(frame_inst)
+            continue
 
         # ④ 결과 직렬화
         serialized = []
@@ -67,4 +82,4 @@ def _tracker_worker(messy_input_queue, output_queue, debug):
 
         if debug:
             print(f"[Tracker:{name}] tracks={serialized}")
-            time.sleep(1 / 30)
+        time.sleep(1 / 60)
