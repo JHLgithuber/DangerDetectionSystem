@@ -11,6 +11,7 @@ import human_detector
 # from queue import Queue
 from stream_input import RtspStream
 from demo_viewer import start_imshow_demo
+import falling_iou_checker
 import sys
 
 
@@ -87,14 +88,18 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
-        # Sort before Tracking
-        # TODO: 귀찮음
 
         # Pose Estimation
+        after_pose_estimation_queue = Queue(maxsize=20*stream_many)
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
                                                          input_frame_instance_queue=after_object_detection_queue,
-                                                         output_frame_instance_queue=output_metadata_queue,
+                                                         output_frame_instance_queue=after_pose_estimation_queue,
                                                          debug=debug_mode, )
+
+        # Falling multi frame IoU Checker
+        fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue, output_q=output_metadata_queue,
+                                                           debug=debug_mode)
+
 
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
@@ -113,6 +118,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if input_metadata_queue.full(): print("input_metadata_queue is FULL")
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
+            if after_pose_estimation_queue.full(): print("after_pose_estimation_queue is FULL")
 
 
             # Watch Dog
@@ -122,6 +128,8 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                 raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
             if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
                 raise RuntimeError("[MAIN PROC WD ERROR] mp porc is dead")
+            if not fall_checker.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
 
 
     except KeyboardInterrupt:
