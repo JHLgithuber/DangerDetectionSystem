@@ -45,22 +45,21 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
     mp_processes = None
 
     try:
-        #프로세스 코어수 연동
+        # 프로세스 코어수 연동
         logical_cores = cpu_count()
-        yolox_cores = max(int(logical_cores // 2.5),2)
-        mp_cores = max(int((logical_cores - yolox_cores) // 1.2),2)
+        yolox_cores = max(int(logical_cores // 2.5), 2)
+        mp_cores = max(int((logical_cores - yolox_cores) // 1.2), 2)
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
-
-        stream_many=len(url_list)
+        stream_many = len(url_list)
 
         # 입력 스트림 초기화
-        input_metadata_queue = Queue(maxsize=60*stream_many)
+        input_metadata_queue = Queue(maxsize=60 * stream_many)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
                                                     receive_frame=1, ignore_frame=0,
-                                                    startup_max_frame_count=200//logical_cores,
+                                                    startup_max_frame_count=200 // logical_cores,
                                                     is_file=is_file, debug=debug_mode)
         print(f"stream_many: {stream_many}")
 
@@ -77,33 +76,34 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             # if debug_mode: print(shm_objs)
 
         # 출력 스트림 설정
-        output_metadata_queue = Queue(maxsize=3*stream_many)
+        output_metadata_queue = Queue(maxsize=3 * stream_many)
         demo_thread = start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
 
         # YOLOX ObjectDetection
         args = get_args()
         exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue = Queue(maxsize=20*stream_many)
+        after_object_detection_queue = Queue(maxsize=20 * stream_many)
         yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
-
         # Pose Estimation
-        after_pose_estimation_queue = Queue(maxsize=20*stream_many)
+        after_pose_estimation_queue = Queue(maxsize=20 * stream_many)
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
                                                          input_frame_instance_queue=after_object_detection_queue,
                                                          output_frame_instance_queue=after_pose_estimation_queue,
                                                          debug=debug_mode, )
 
         # Falling multi frame IoU Checker
-        fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue, output_q=output_metadata_queue,
+        fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
+                                                           output_q=output_metadata_queue,
+                                                           buffer_size=50,
+                                                           fall_ratio_thresh=0.7,
                                                            debug=debug_mode)
-
 
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
-            instance.run_stream(shm_names_dict[name],)
+            instance.run_stream(shm_names_dict[name], )
 
         # 뭔가 프로세싱
         # while True:
@@ -119,7 +119,6 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
             if after_pose_estimation_queue.full(): print("after_pose_estimation_queue is FULL")
-
 
             # Watch Dog
             if not demo_thread.is_alive():
@@ -140,7 +139,7 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
         print(f"main error: {e}")
 
     finally:
-        exit_code=0
+        exit_code = 0
         try:
             if yolox_process:
                 yolox_process.terminate()
@@ -149,10 +148,9 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             # 리소스 정리
             if stream_instance_dict:
                 for name, instance in stream_instance_dict.items():
-                    thread=instance.kill_stream()
+                    thread = instance.kill_stream()
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
-
 
             if mp_processes:
                 for mp_proc in mp_processes:
@@ -183,14 +181,14 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        #("TestFile_1", "./data_for_test/streetTestVideo.mp4", True),
-        #("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
-        #("TestFile_3", "./data_for_test/streetTestVideo3.mp4", True),
+        # ("TestFile_1", "./data_for_test/streetTestVideo.mp4", True),
+        # ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
+        # ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", True),
         ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", True),
-        #("Image_1", "./data_for_test/imageByCG.png", True),
-        #("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
-        #("Image_3", "data_for_test/pose_demo_3p.png", True),
-        #("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
+        # ("Image_1", "./data_for_test/imageByCG.png", True),
+        # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
+        # ("Image_3", "data_for_test/pose_demo_3p.png", True),
+        # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
         # ("CameraVidio","C:/Users/User/Pictures/Camera Roll/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
