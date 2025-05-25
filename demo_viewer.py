@@ -33,9 +33,9 @@ def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
             pose_detection, img_size=crop_object_img["img_size"], )
 
         if fall_flag:
-            cv2.putText(pose_landmark_overlay, "FALL by IoU", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            cv2.putText(pose_landmark_overlay, "Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
-            cv2.putText(pose_landmark_overlay, "NOT FALL by IoU", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(pose_landmark_overlay, "NOT Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # (3) bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]

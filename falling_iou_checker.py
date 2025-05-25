@@ -35,7 +35,7 @@ def _fall_worker(in_q: Queue, out_q: Queue,
 
         if frame.pose_detection_list is None:
             print(f"[Fall_IoU] {name}pose_detection_list is None")
-            continue
+            out_q.put(frame)
 
         for i, crop in enumerate(crops):
             bbox = tuple(crop['bbox'])
