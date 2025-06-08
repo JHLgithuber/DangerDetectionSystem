@@ -174,7 +174,7 @@ class PoseDetector:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
             if self.show_now:
-                annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'])
+                annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'], debug=debug)
                 cv2.imshow(pose_demo_name, annotated_image)
                 cv2.waitKey(1)
 
@@ -207,7 +207,7 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         return annotated_image
 
     #TODO: 분리 요망
-    detection_fall_result=fall_detecting_algorithm.detect_fall(detection_result)
+    detection_fall_result=fall_detecting_algorithm.detect_fall(detection_result, debug=debug)
     if detection_fall_result is None:
         cv2.putText(annotated_image, "Conf Fail", (5, 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)

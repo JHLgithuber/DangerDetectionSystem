@@ -168,20 +168,14 @@ def detect_fall(detection_result, debug=False):
                 return None
 
 
-        #result = detect_fall_normalized(lm2d_list)
-        result = detect_fall_angle(lm2d_list)
-        if result[0]:  # is_fall이 True인 경우
-            if result[1] == 'forward':
-                print("낙상 감지: 앞으로 넘어짐")
-            elif result[1] == 'backward':
-                print("낙상 감지: 뒤로 넘어짐")
-            else:
-                print("낙상 감지: 깊이 방향으로 넘어짐 (방향 불명)")
-        else:
-            print("넘어짐 없음: 정상 자세")
+        result_by_normalization = detect_fall_normalized(lm2d_list)
+        result_by_angle = detect_fall_angle(lm2d_list)
 
-        if result[0]:
-            if debug: print("FALL DETECTED")
+        if result_by_angle[0]:
+            if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
+            return True
+        elif result_by_normalization[0]:
+            if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
             return True
         else:
             if debug: print("FALL NOT DETECTED")

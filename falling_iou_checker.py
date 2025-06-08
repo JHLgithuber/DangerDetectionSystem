@@ -42,7 +42,8 @@ def _fall_worker(in_q: Queue, out_q: Queue,
         for i, crop in enumerate(crops):
             bbox = tuple(crop['bbox'])
             pose_det = frame.pose_detection_list[i]
-            is_flag = detect_fall(pose_det)
+            is_flag = detect_fall(pose_det, debug=debug)
+            if debug: print(f"[Fall_IoU] {name} idx={i} is_flag={is_flag}")
 
             # 과거 모든 프레임의 모든 bbox와 비교
             match_cnt = fall_cnt = 0

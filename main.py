@@ -1,5 +1,6 @@
 import argparse
 import time
+import torch
 from multiprocessing.managers import SharedMemoryManager
 from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from threading import Thread
@@ -161,11 +162,12 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                     except Exception as e:
                         print(f"프로세스 종료 중 오류: {e}")
 
+
             if frame_smm_mgr:
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
 
-                print("See you later!")
+            print("See you later!")
 
         except Exception as e:
             print(f"정리 중 오류 발생: {e}")
