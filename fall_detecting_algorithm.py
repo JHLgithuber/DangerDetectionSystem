@@ -51,22 +51,36 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     # 최종 판단 (세 부분 중 두 부분 이상 넘어지면 쓰러짐)
     fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf])
     is_fallen = fallen_parts >= 2
-
-    # 방향 판단
-    fall_direction = None
-    if is_fallen:
-        if torso_vec[0] > 0.1:
-            fall_direction = 'right'
-        elif torso_vec[0] < -0.1:
-            fall_direction = 'left'
-        else:
-            if torso_vec[1] > 0:
-                fall_direction = 'forward'
-            else:
-                fall_direction = 'backward'
+    fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf}"
 
 
-    return (is_fallen, fall_direction)
+    return is_fallen, fallen_reason
+
+def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
+    #min_max_recline_ratio는 영상에서 보이는 정상적인 신체비율로 설정, 폭 대비 키가 짧아져 보이면 트리거
+    left_shoulder = lm2d_list[11]
+    right_shoulder = lm2d_list[12]
+    left_hip = lm2d_list[23]
+    right_hip = lm2d_list[24]
+    left_knee = lm2d_list[25]
+    right_knee = lm2d_list[26]
+    left_ankle = lm2d_list[27]
+    right_ankle = lm2d_list[28]
+
+    # 신체 비율 계산
+    width_body = abs(right_shoulder.x - left_shoulder.x)
+    height_body = abs((right_shoulder.y - right_ankle.y + left_shoulder.y - left_ankle.y) / 2.0)
+    ratio_body = height_body / width_body if width_body > 1e-6 else float('inf')
+
+
+    if ratio_body < min_recline_ratio:
+        is_fallen=True
+        fallen_reason=f"ratio_body({ratio_body}) < min_recline_ratio({min_recline_ratio})"
+    else:
+        is_fallen=False
+        fallen_reason=f"ratio_body({ratio_body}) in range({min_recline_ratio})"
+
+    return is_fallen, fallen_reason
 
 def detect_fall_normalized(lm2d_list):
     # 2D 정규화 좌표 기반으로 모든 계산
@@ -116,23 +130,8 @@ def detect_fall_normalized(lm2d_list):
     is_fall = (spine_angle_deg > 50) or (spine_ratio < 1.2)
     is_fall_final = is_fall or is_side_fall
 
-    # 방향 판정
-    fall_direction = None
-    if is_fall_final:
-        if is_side_fall:
-            if left_shoulder.y > right_shoulder.y:
-                fall_direction = 'left'
-            else:
-                fall_direction = 'right'
-        else:
-            if mid_shoulder_y - mid_hip_y > 0:
-                fall_direction = 'forward'
-            elif mid_ankle_y - mid_hip_y < 0:
-                fall_direction = 'backward'
-            else:
-                fall_direction = None
 
-    return (is_fall_final, fall_direction)
+    return is_fall_final,None
 
 #신뢰도 검사
 def check_visibility_presence(lm2d_list):
@@ -170,9 +169,13 @@ def detect_fall(detection_result, debug=False):
 
         result_by_normalization = detect_fall_normalized(lm2d_list)
         result_by_angle = detect_fall_angle(lm2d_list)
+        result_by_recline = detect_fall_recline(lm2d_list)
 
         if result_by_angle[0]:
             if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
+            return True
+        elif result_by_recline[0]:
+            if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
             return True
         elif result_by_normalization[0]:
             if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
@@ -182,10 +185,3 @@ def detect_fall(detection_result, debug=False):
             return False
 
     return None
-
-
-if __name__ == "__main__":
-    left_ankle_lm = landmark_pb2.Landmark(x=0.2, y=0, z=0.3, presence=1.0)
-    right_ankle_lm = landmark_pb2.Landmark(x=-0.8, y=0, z=-0.3, presence=1.0)
-
-    # _is_center_in_ellipse(left_ankle_lm, right_ankle_lm, margin_ratio=1.2, debug=True)
