@@ -83,15 +83,3 @@ def run_fall_worker(input_q: Queue, output_q: Queue,
     p.start()
     if debug: print("[Fall] worker started")
     return p
-
-if __name__ == "__main__":
-    q_input          = Queue(maxsize=100)
-    q_pose_to_fall   = Queue(maxsize=100)
-    q_fall_to_output = Queue(maxsize=100)
-
-    pose_p = run_pose_worker(q_input,        q_pose_to_fall,   debug=True)
-    fall_p = run_fall_worker(q_pose_to_fall, q_fall_to_output, debug=True)
-    out_p  = run_output_worker(q_fall_to_output, debug=True)
-
-    # frame 생성 후 q_input.put(frame) 만 하면
-    # pose → fall → output 순으로 처리됩니다.
