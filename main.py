@@ -135,7 +135,6 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     except Exception as e:
         print(f"main error: {e}")
 
-    # noinspection PyUnreachableCode
     finally:    # 리소스 정리
         exit_code = 0
         try:
@@ -171,7 +170,6 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
 
         finally:
             print("main END...")
-
     return exit_code
 
 
