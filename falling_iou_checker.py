@@ -1,14 +1,17 @@
 # pipeline.py
 
-import numpy as np
 from collections import deque
 from multiprocessing import Process, Queue
+
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 from fall_detecting_algorithm import detect_fall
 from pose_detector import crop_objects
+
+
 #from pose_worker import run_pose_worker
 #from output_worker import run_output_worker
 
+# noinspection PyPep8Naming
 def compute_iou(a, b):
     xA = max(a[0], b[0]); yA = max(a[1], b[1])
     xB = min(a[2], b[2]); yB = min(a[3], b[3])
@@ -45,7 +48,7 @@ def _fall_worker(in_q: Queue, out_q: Queue,
             is_flag = detect_fall(pose_det, debug=debug)
             if debug: print(f"[Fall_IoU] {name} idx={i} is_flag={is_flag}")
 
-            # 과거 모든 프레임의 모든 bbox와 비교
+            # 과거 모든 frane의 모든 bbox와 비교
             match_cnt = fall_cnt = 0
             for past_frame in history:
                 for past in past_frame:
@@ -66,7 +69,7 @@ def _fall_worker(in_q: Queue, out_q: Queue,
             current_data.append({'bbox': bbox, 'is_flag': is_flag})
             if debug: print(f"[Fall_IoU] current_data=> {name} idx={i} is_flag={is_flag}")
 
-        # 버퍼에 추가하고 결과 저장
+        # 버퍼에 추가 하고 결과 저장
         history.append(current_data)
         frame.fall_flag_list = fall_flags
         out_q.put(frame)

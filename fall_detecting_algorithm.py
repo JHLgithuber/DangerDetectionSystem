@@ -1,10 +1,7 @@
-from mediapipe import solutions
-from mediapipe.framework.formats import landmark_pb2
-import numpy as np
 import math
 
 def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50):
-    # Mediapipe 랜드마크 좌표 (정규화 좌표)
+    # Mediapipe landmark 좌표 (정규화 좌표)
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
     left_hip = lm2d_list[23]
@@ -29,9 +26,9 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     thigh_vec = (mid_knee_x - mid_hip_x, mid_knee_y - mid_hip_y)
     calf_vec = (mid_ankle_x - mid_knee_x, mid_ankle_y - mid_knee_y)
 
-    # 수직 방향(0,1)과 각 세그먼트 벡터의 이루는 각도 계산
+    # 수직 방향(0,1)과 각 segment 벡터의 이루는 각도 계산
     def vertical_angle(vec):
-        # 수직 방향 (y축 아래방향)
+        # 수직 방향 (y축 아래 방향)
         dot = vec[1] / (math.hypot(vec[0], vec[1]) + 1e-6)
         angle_deg = math.degrees(math.acos(min(max(dot, -1.0), 1.0)))
         return angle_deg
@@ -48,7 +45,7 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     fallen_thigh = angle_thigh > thigh_thresh
     fallen_calf = angle_calf > calf_thresh
 
-    # 최종 판단 (세 부분 중 두 부분 이상 넘어지면 쓰러짐)
+    # 최종 판단 (세 부분 중 두 부분 이상 넘어 지면 쓰러짐)
     fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf])
     is_fallen = fallen_parts >= 2
     fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf}"
@@ -56,6 +53,8 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
 
     return is_fallen, fallen_reason
 
+
+# noinspection PyUnusedLocal
 def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
     #min_max_recline_ratio는 영상에서 보이는 정상적인 신체비율로 설정, 폭 대비 키가 짧아져 보이면 트리거
     left_shoulder = lm2d_list[11]
@@ -82,8 +81,10 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
 
     return is_fallen, fallen_reason
 
+
+# noinspection PyUnusedLocal
 def detect_fall_normalized(lm2d_list):
-    # 2D 정규화 좌표 기반으로 모든 계산
+    # 2D 정규화 좌표 기반 으로 모든 계산
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
     left_hip = lm2d_list[23]
@@ -116,7 +117,7 @@ def detect_fall_normalized(lm2d_list):
     # 척추 대 허리 비율
     spine_ratio = spine_length / waist_width if waist_width > 1e-6 else float('inf')
 
-    # 척추 각도 (정규화 좌표에서도 방식 동일)
+    # 척추 각도 (정규화 좌표 에서도 방식 동일)
     dot = spine_vec_y / (spine_length + 1e-6)  # 중력방향이 (0,1)이라서
     dot = max(min(dot, 1), -1)
     spine_angle_deg = math.degrees(math.acos(dot))
@@ -153,7 +154,7 @@ def detect_fall(detection_result, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
 
-    # 둘 중 하나라도 없으면 원본 반환
+    # 둘 중 하나 라도 없으면 원본 반환
     if not pixel_landmarks_list:
         return None
 
