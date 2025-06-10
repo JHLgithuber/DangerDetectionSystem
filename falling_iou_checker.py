@@ -1,4 +1,3 @@
-# pipeline.py
 
 from collections import deque
 from multiprocessing import Process, Queue
@@ -7,9 +6,6 @@ from dataclass_for_StreamFrameInstance import StreamFrameInstance
 from fall_detecting_algorithm import detect_fall
 from pose_detector import crop_objects
 
-
-#from pose_worker import run_pose_worker
-#from output_worker import run_output_worker
 
 # noinspection PyPep8Naming
 def compute_iou(a, b):

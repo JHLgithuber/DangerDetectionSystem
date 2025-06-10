@@ -7,7 +7,6 @@ import falling_iou_checker
 import human_detector
 import pose_detector
 from demo_viewer import start_imshow_demo
-# from queue import Queue
 from stream_input import RtspStream
 from yolox.exp import get_exp
 
