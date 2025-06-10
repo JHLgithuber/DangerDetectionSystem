@@ -153,7 +153,9 @@ class PoseDetector:
     def detect(self, stream_frame_instance, debug=False):
         crop_object_images = crop_objects(stream_frame_instance)
         pose_landmarker_results = list()
-        crop_object_img=None
+        #crop_object_img=None
+
+        #포즈감지용 화면 초기화
         pose_demo_name="DRAWED IMAGE of ERROR"
         if self.show_now:
             pose_demo_name=f"DRAWED IMAGE of {self.current_process_name}"
@@ -173,7 +175,7 @@ class PoseDetector:
             if debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
-            if self.show_now:
+            if self.show_now:   #포즈감지용 화면 출력
                 annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'], debug=debug)
                 cv2.imshow(pose_demo_name, annotated_image)
                 cv2.waitKey(1)
@@ -189,10 +191,8 @@ class PoseDetector:
 def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_size=None, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)rgb_image
     pixel_landmarks_list = detection_result.pose_landmarks
-    # 3D 월드 랜드마크 리스트 (list of list)
-    world_landmarks_list = detection_result.pose_world_landmarks
 
-
+    #이미지 미포함시 검정화면에 처리
     if rgb_image is None:
         #crop_h, crop_w = rgb_image.shape[:2]
         annotated_image=np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
@@ -200,13 +200,13 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         annotated_image = np.copy(rgb_image)
     #h, w = annotated_image.shape[:2]
 
-    # 둘 중 하나라도 없으면 원본 반환
-    if not pixel_landmarks_list or not world_landmarks_list:
+    #렌드마크 없으면 원본 반환
+    if not pixel_landmarks_list:
         cv2.putText(annotated_image, "Pose Fail", (5, 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)
         return annotated_image
 
-    #TODO: 분리 요망
+    #감지결과 추가
     detection_fall_result=fall_detecting_algorithm.detect_fall(detection_result, debug=debug)
     if detection_fall_result is None:
         cv2.putText(annotated_image, "Conf Fail", (5, 15),
@@ -223,8 +223,7 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         if detection_fall_result is None:
             continue
         lm2d_list = pixel_landmarks_list[idx]
-        lm3d_list = world_landmarks_list[idx]
-        if not lm2d_list or not lm3d_list:
+        if not lm2d_list:
             continue
 
         # 2D overlay: 연결선 + 점
@@ -240,17 +239,6 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
             solutions.drawing_styles.get_default_pose_landmarks_style()
         )
 
-        # 3D 월드 좌표 텍스트 표시
-        #for lm2d, lm3d in zip(lm2d_list, lm3d_list):
-        #    x_px = int(lm2d.x * w)
-        #    y_px = int(lm2d.y * h)
-        #    coord_text = f"({lm3d.x:.2f}m, {lm3d.y:.2f}m, {lm3d.z:.2f}m)"
-        #    # 검은 테두리
-        #    cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), 2)
-        #    # 흰 글씨
-        #    cv2.putText(annotated_image, coord_text, (x_px + 5, y_px - 5),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
     return annotated_image
 

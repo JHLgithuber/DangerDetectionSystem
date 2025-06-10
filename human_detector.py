@@ -240,23 +240,23 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     return imageflow_demo_process
 
 
-def get_args():
-    hard_args = argparse.Namespace(
-        demo="video",
-        experiment_name=None,
-        name="yolox-s",
-        path="data_for_test/streetTestVideo4.mp4",
-        camid=0,
-        show_result=True,
-        exp_file=None,
-        ckpt="yolox_s.pth",
-        device="gpu",
-        conf=0.45,  #신뢰도
-        nms=0.65,   #클수록 겹치는 바운딩박스 제거
-        tsize=640,
-        fp16=False,
-        legacy=False,
-        fuse=False,
-        trt=False
-    )
-    return hard_args
+# def get_args():
+#     hard_args = argparse.Namespace(
+#         demo="video",
+#         experiment_name=None,
+#         name="yolox-s",
+#         path="data_for_test/streetTestVideo4.mp4",
+#         camid=0,
+#         show_result=True,
+#         exp_file=None,
+#         ckpt="yolox_s.pth",
+#         device="gpu",
+#         conf=0.45,  #신뢰도
+#         nms=0.65,   #클수록 겹치는 바운딩박스 제거
+#         tsize=640,
+#         fp16=False,
+#         legacy=False,
+#         fuse=False,
+#         trt=False
+#     )
+#     return hard_args

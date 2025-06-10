@@ -38,7 +38,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frames=1000):
+def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
     stream_instance_dict = dict()
@@ -73,12 +73,12 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
             shm_name = [shm.name for shm in shm_objs]
             shm_objs_dict[name] = shm_objs
             shm_names_dict[name] = shm_name
-            # if debug_mode: print(shm_name)
-            # if debug_mode: print(shm_objs)
+
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
         demo_thread = start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
+
 
         # YOLOX ObjectDetection
         args = get_args()
@@ -88,12 +88,14 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
+
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=20 * stream_many)
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
                                                          input_frame_instance_queue=after_object_detection_queue,
                                                          output_frame_instance_queue=after_pose_estimation_queue,
                                                          debug=debug_mode, )
+
 
         # Falling multi frame IoU Checker
         fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
@@ -102,16 +104,11 @@ def main(url_list, debug_mode=True, show_mode=True, show_latency=True, max_frame
                                                            fall_ratio_thresh=0.7,
                                                            debug=debug_mode)
 
+
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
             instance.run_stream(shm_names_dict[name], )
 
-        # 뭔가 프로세싱
-        # while True:
-        #    porc_frame=input_metadata_queue.get()
-        #    #time.sleep(5)
-        #    if debug_mode: print(f"porc_frame.captured_datetime: {porc_frame.captured_datetime}")
-        #    output_metadata_queue.put(porc_frame)
 
         while True:
             time.sleep(2)
