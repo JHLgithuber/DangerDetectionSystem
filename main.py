@@ -109,7 +109,6 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
         for name, instance in stream_instance_dict.items():
             instance.run_stream(shm_names_dict[name], )
 
-
         while True:
             time.sleep(2)
             # Bottle Neck Check
@@ -136,21 +135,21 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     except Exception as e:
         print(f"main error: {e}")
 
-    finally:
+    # noinspection PyUnreachableCode
+    finally:    # 리소스 정리
         exit_code = 0
         try:
-            if yolox_process:
+            if yolox_process:   #yolox 프로세스 종료
                 yolox_process.terminate()
                 yolox_process.join(timeout=5.0)
 
-            # 리소스 정리
-            if stream_instance_dict:
+            if stream_instance_dict:    #입력스트림 종료
                 for name, instance in stream_instance_dict.items():
                     thread = instance.kill_stream()
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if mp_processes:
+            if mp_processes:    #포즈추정 프로세스 종료
                 for mp_proc in mp_processes:
                     try:
                         mp_proc.terminate()
@@ -160,7 +159,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
                         print(f"프로세스 종료 중 오류: {e}")
 
 
-            if frame_smm_mgr:
+            if frame_smm_mgr:   #공유메모리 정리
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
 
@@ -172,7 +171,8 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
 
         finally:
             print("main END...")
-            return exit_code
+
+    return exit_code
 
 
 if __name__ == "__main__":
@@ -188,10 +188,10 @@ if __name__ == "__main__":
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
         # ("Image_3", "data_for_test/pose_demo_3p.png", True),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
-         ("CameraVidio","data_for_test/WIN_20250520_18_53_11_Pro.mp4",True),
+        # ("CameraVidio","data_for_test/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4",True),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4",True),
-         ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4",True),
+        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4",True),
          ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
