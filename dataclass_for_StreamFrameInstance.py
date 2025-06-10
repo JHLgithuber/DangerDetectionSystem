@@ -1,17 +1,13 @@
+import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
-import time
-
-import cv2
-import numpy as np
 from multiprocessing import shared_memory
 from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.managers import SharedMemoryManager
-from queue import Queue
-import heapq
-from collections import defaultdict
-from itertools import count
+from typing import Dict, List, Optional, Any
+
+import numpy as np
+
 
 @dataclass
 class StreamFrameInstance:
@@ -22,28 +18,13 @@ class StreamFrameInstance:
     width: int
     captured_datetime: datetime = field(default_factory=datetime.now)
     human_detection_numpy: Optional[np.ndarray] = None
+    # noinspection SpellCheckingInspection
     human_detection_tsize: int = 640
     human_tracking_serial: Optional[List[Dict[str, Any]]] = None
     pose_detection_list: Optional[np.ndarray] = None
     fall_flag_list: Optional[List[bool]] = None
     bypass_flag: bool = False
-    
-#    def __del__(self):
-#        """객체가 파괴될 때 자동으로 호출되어 공유 메모리를 정리합니다."""
-#        try:
-#            # 공유 메모리 해제 시도
-#            print(f"[INFO] {self.stream_name} frame instance is deleted")
-#            if hasattr(self, 'frame_info') and self.frame_info and 'name' in self.frame_info:
-#                try:
-#                    shm = shared_memory.SharedMemory(name=self.frame_info['name'], create=False)
-#                    shm.close()
-#                    shm.unlink()  # 참조 카운트를 적절히 관리하기 위해 조심해서 사용
-#                except Exception as e:
-#                    # 이미 해제되었거나 다른 프로세스가 사용 중인 경우 무시
-#                    pass
-#        except Exception:
-#            # 종료 과정에서 발생하는 예외는 무시
-#            pass
+
 
 def save_frame_to_shared_memory(frame, shm_name, debug=False):
     shm = None
@@ -90,22 +71,26 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
 
 
 def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=30, debug=False,):
+    # noinspection SpellCheckingInspection
     """
-    시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
-    
-    Args:
-        messy_frame_instance_queue: 정렬되지 않은 입력 큐
-        sorted_frame_instance_queue: 정렬된 결과를 넣을 출력 큐 (선택 사항)
-        buffer_size: 정렬에 사용할 버퍼 크기
-    
-    Yields:
-        시간순으로 정렬된 StreamFrameInstance
-    """
-    buffer = []
+        시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
+
+        Args:
+            messy_frame_instance_queue: 정렬되지 않은 입력 큐
+            sorted_frame_instance_queue: 정렬된 결과를 넣을 출력 큐 (선택 사항)
+            buffer_size: 정렬에 사용할 버퍼 크기
+
+        Yields:
+            시간순으로 정렬된 StreamFrameInstance
+            :param sorted_frame_instance_queue:
+            :param messy_frame_instance_queue:
+            :param debug: 디버그
+        """
     stream_buffers = defaultdict(list)
     if debug: print(f"[DEBUG] sorter is run")
     while True:
         # 큐에서 데이터 가져오기
+        # noinspection SpellCheckingInspection
         try:
             instance = messy_frame_instance_queue.get(timeout=0.5)
             

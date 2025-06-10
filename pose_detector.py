@@ -27,6 +27,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
         }
     """
     h, w = stream_frame_instance.height, stream_frame_instance.width
+    frame = None
     if need_frame:
         # 1) 원본 프레임 복원
         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
@@ -155,14 +156,14 @@ class PoseDetector:
         pose_landmarker_results = list()
         #crop_object_img=None
 
-        #포즈감지용 화면 초기화
-        pose_demo_name="DRAWED IMAGE of ERROR"
+        # 포즈 감지용 화면 초기화
+        pose_demo_name="DRAWN IMAGE of ERROR"
         if self.show_now:
-            pose_demo_name=f"DRAWED IMAGE of {self.current_process_name}"
+            pose_demo_name=f"DRAWN IMAGE of {self.current_process_name}"
             cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
 
         for crop_object_img in crop_object_images:
-            # 이미지가 올바른 형식인지 확인하고 변환
+            # crop_object_img가 올바른 형식 인지 확인후 변환
             image_data = np.ascontiguousarray(crop_object_img['crop'])
             if image_data.dtype != np.uint8:
                 image_data = image_data.astype(np.uint8)
@@ -175,7 +176,7 @@ class PoseDetector:
             if debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
-            if self.show_now:   #포즈감지용 화면 출력
+            if self.show_now:   # 포즈 감지용 화면 출력
                 annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'], debug=debug)
                 cv2.imshow(pose_demo_name, annotated_image)
                 cv2.waitKey(1)
@@ -188,11 +189,12 @@ class PoseDetector:
         return pose_landmarker_results
 
 
+# noinspection PyUnresolvedReferences
 def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_size=None, debug=False):
-    # 2D 정규화 랜드마크 리스트 (list of list)rgb_image
+    # 2D 정규화 랜드 마크 리스트 (list of list)rgb_image
     pixel_landmarks_list = detection_result.pose_landmarks
 
-    #이미지 미포함시 검정화면에 처리
+    # 이미지 미포함 시 검정 화면에 처리
     if rgb_image is None:
         #crop_h, crop_w = rgb_image.shape[:2]
         annotated_image=np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
@@ -200,13 +202,13 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         annotated_image = np.copy(rgb_image)
     #h, w = annotated_image.shape[:2]
 
-    #렌드마크 없으면 원본 반환
+    # 랜드 마크 없으면 원본 반환
     if not pixel_landmarks_list:
         cv2.putText(annotated_image, "Pose Fail", (5, 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)
         return annotated_image
 
-    #감지결과 추가
+    # 감지 결과 추가
     detection_fall_result=fall_detecting_algorithm.detect_fall(detection_result, debug=debug)
     if detection_fall_result is None:
         cv2.putText(annotated_image, "Conf Fail", (5, 15),

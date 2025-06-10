@@ -2,26 +2,19 @@
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii, Inc. and its affiliates.
 import multiprocessing
-import uuid
-import argparse
-import os
+import queue
 import time
-from loguru import logger
-import cv2
-import torch
+from multiprocessing import Queue, Process
+
 import numpy as np
+import torch
+from loguru import logger
 
 import dataclass_for_StreamFrameInstance
-import demo_viewer
-import queue
-from multiprocessing import Queue, Process, Manager, shared_memory
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
-from yolox.utils import fuse_model, get_model_info, postprocess, vis
-
-import stream_input
-from collections import defaultdict
+from yolox.utils import get_model_info, postprocess
 
 multiprocessing.set_start_method('spawn', force=True)
 
@@ -52,6 +45,7 @@ def _inference_worker(input_queue, output_queue, args, all_object=False, debug_m
         return
 
 class Predictor(object):
+    # noinspection PyUnusedLocal
     def __init__(
             self,
             model,
@@ -141,6 +135,7 @@ class Predictor(object):
             #time.sleep(0.0001)
 
 
+# noinspection PyUnusedLocal
 def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False,):
     inference_worker_set = set()
     input_queue = Queue(maxsize=32)
@@ -238,25 +233,3 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     )
     imageflow_demo_process.daemon = False
     return imageflow_demo_process
-
-
-# def get_args():
-#     hard_args = argparse.Namespace(
-#         demo="video",
-#         experiment_name=None,
-#         name="yolox-s",
-#         path="data_for_test/streetTestVideo4.mp4",
-#         camid=0,
-#         show_result=True,
-#         exp_file=None,
-#         ckpt="yolox_s.pth",
-#         device="gpu",
-#         conf=0.45,  #신뢰도
-#         nms=0.65,   #클수록 겹치는 바운딩박스 제거
-#         tsize=640,
-#         fp16=False,
-#         legacy=False,
-#         fuse=False,
-#         trt=False
-#     )
-#     return hard_args

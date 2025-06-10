@@ -1,19 +1,12 @@
-import argparse
-import sys
 import time
 import uuid
-from multiprocessing import Manager
-
-import cv2
-from torch.utils.jit.log_extract import run_nnc
-
-import dataclass_for_StreamFrameInstance
 from threading import Thread
 
 import av
+import cv2
 import numpy as np
 
-import demo_viewer
+import dataclass_for_StreamFrameInstance
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 
@@ -230,7 +223,7 @@ class RtspStream:
                 )
                 print("endVideo")
                 container.close()
-                index =0
+
         except Exception as e:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
 

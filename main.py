@@ -1,19 +1,15 @@
 import argparse
 import time
-import torch
-from multiprocessing.managers import SharedMemoryManager
 from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
-from threading import Thread
-from yolox.exp import get_exp
-import cv2
-import pose_detector
-import dataclass_for_StreamFrameInstance
+from multiprocessing.managers import SharedMemoryManager
+
+import falling_iou_checker
 import human_detector
+import pose_detector
+from demo_viewer import start_imshow_demo
 # from queue import Queue
 from stream_input import RtspStream
-from demo_viewer import start_imshow_demo
-import falling_iou_checker
-import sys
+from yolox.exp import get_exp
 
 
 def get_args():
@@ -138,17 +134,17 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     finally:    # 리소스 정리
         exit_code = 0
         try:
-            if yolox_process:   #yolox 프로세스 종료
+            if yolox_process:   # yolox 프로세스 종료
                 yolox_process.terminate()
                 yolox_process.join(timeout=5.0)
 
-            if stream_instance_dict:    #입력스트림 종료
+            if stream_instance_dict:    # 입력스트림 종료
                 for name, instance in stream_instance_dict.items():
                     thread = instance.kill_stream()
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if mp_processes:    #포즈추정 프로세스 종료
+            if mp_processes:    # 포즈 추정 프로세스 종료
                 for mp_proc in mp_processes:
                     try:
                         mp_proc.terminate()
@@ -158,7 +154,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
                         print(f"프로세스 종료 중 오류: {e}")
 
 
-            if frame_smm_mgr:   #공유메모리 정리
+            if frame_smm_mgr:   # 공유메모리 정리
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
 

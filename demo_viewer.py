@@ -1,19 +1,21 @@
+import time
 from datetime import datetime
-from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
+from multiprocessing import Process, Queue
+from threading import Thread
+
 import cv2
 import numpy as np
-import time
-from multiprocessing import Process, Queue
-from multiprocessing.managers import SharedMemoryManager
-from threading import Thread
 import torch
 
 import dataclass_for_StreamFrameInstance
-from yolox.utils import vis
+from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 from yolox.data.datasets import COCO_CLASSES
+from yolox.utils import vis
 
+
+# noinspection PyUnusedLocal
 def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
-    # 1. 원본 프레임 불러오기
+    # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
@@ -21,14 +23,14 @@ def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
 
-    # 3. 각 객체(사람)별로 스켈레톤 그린 overlay 오버레이 방식으로 합성
+    # 3. 각 객체(사람)별로 skeleton 그린 overlay로 합성
     for crop_object_img, pose_detection, fall_flag in zip(
             crop_object_images, stream_frame_instance.pose_detection_list, stream_frame_instance.fall_flag_list):
-        # (1) crop 크기만큼 검정 배경 생성
+        # (1) crop 크기 만큼 검정 배경 생성
         # crop_h, crop_w = crop_object_img["crop"].shape[:2]
         # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
 
-        # (2) 오버레이에 스켈레톤(랜드마크) 그리기
+        # (2) overlay에 skeleton 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
             pose_detection, img_size=crop_object_img["img_size"], )
 
@@ -40,20 +42,20 @@ def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
         # (3) bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
 
-        # (4) 원본 프레임의 해당 ROI 영역
+        # (4) 원본 frame의 해당 ROI 영역
         roi = frame[y1_p:y2_p, x1_p:x2_p]
-        # (5) 마스크: overlay에서 검정색이 아닌 부분만 True
+        # (5) 마스크: overlay 에서 검정이 아닌 부분만 True
         mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
-        # (6) ROI에 오버레이: mask 부분만 복사
+        # (6) ROI에 overlay: mask 부분만 복사
         roi[mask] = pose_landmark_overlay[mask]
-        # (7) (frame은 numpy view라서 자동 적용)
+        # (7) (frame은 numpy view 라서 자동 적용)
 
     return frame
 
 
-
+# noinspection PyUnusedLocal
 def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
-    # 1. 원본 프레임 불러오기
+    # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
@@ -61,27 +63,27 @@ def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
 
-    # 3. 각 객체(사람)별로 스켈레톤 그린 overlay 오버레이 방식으로 합성
+    # 3. 각 객체(사람)별로 sk 그린 overlay 로 합성
     for crop_object_img, pose_detection in zip(
             crop_object_images, stream_frame_instance.pose_detection_list):
-        # (1) crop 크기만큼 검정 배경 생성
+        # (1) crop 크기 만큼 검정 배경 생성
         # crop_h, crop_w = crop_object_img["crop"].shape[:2]
         # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
 
-        # (2) 오버레이에 스켈레톤(랜드마크) 그리기
+        # (2) overlay에 skeleton 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
             pose_detection, img_size=crop_object_img["img_size"], )
 
         # (3) bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
 
-        # (4) 원본 프레임의 해당 ROI 영역
+        # (4) 원본 frame의 해당 ROI 영역
         roi = frame[y1_p:y2_p, x1_p:x2_p]
-        # (5) 마스크: overlay에서 검정색이 아닌 부분만 True
+        # (5) 마스크: overlay 에서 검정이 아닌 부분만 True
         mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
-        # (6) ROI에 오버레이: mask 부분만 복사
+        # (6) ROI에 overlay: mask 부분만 복사
         roi[mask] = pose_landmark_overlay[mask]
-        # (7) (frame은 numpy view라서 자동 적용)
+        # (7) (frame은 numpy view 라서 자동 적용)
 
     return frame
 
@@ -104,7 +106,7 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     cls = output[:, 6]
     scores = output[:, 4] * output[:, 5]
 
-    vis_res = vis(row_img, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # 프레임에 결과 그려줌
+    vis_res = vis(row_img, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # frame에 결과 그려줌
     return vis_res
 
 
@@ -137,7 +139,7 @@ def visual_from_tracking_serial(stream_frame_instance, cls_conf=0.35):
 def demo_viewer(stream_name, frame, debug=False):
     try:
         if frame is None or not isinstance(frame, np.ndarray):
-            print(f"[ERROR] {stream_name}: 유효하지 않은 프레임")
+            print(f"[ERROR] {stream_name}: 유효 하지 않은 프레임")
 
         if frame.size == 0:
             print(f"[ERROR] {stream_name}: 빈 프레임")
@@ -262,7 +264,7 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
                 process.start()
                 time.sleep(0.001)
             stream_viewer_queue_dict[stream_name].put(stream)
-            # time.sleep(0.001)
+
 
     except KeyboardInterrupt:
         print("\nDEMO VIEWER is END by KeyboardInterrupt")
@@ -271,10 +273,12 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
         print(f"\nDEMO VIEWER is KILL by {e}")
 
     finally:
-        for viewer in stream_viewer_process_set:
-            viewer.terminate()
-            viewer.join()
-            print(f"[INFO] {viewer.name} is terminated.")
+        def __terminate_process():
+            for viewer in stream_viewer_process_set:
+                viewer.terminate()
+                viewer.join()
+                print(f"[INFO] {viewer.name} is terminated.")
+        __terminate_process()
 
 
 def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
