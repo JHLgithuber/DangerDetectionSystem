@@ -2,14 +2,12 @@ import argparse
 import time
 from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from multiprocessing.managers import SharedMemoryManager
-
 import falling_iou_checker
 import human_detector
 import pose_detector
 from demo_viewer import start_imshow_demo
 from stream_input import RtspStream
 from yolox.exp import get_exp
-
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -181,11 +179,11 @@ if __name__ == "__main__":
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
         # ("Image_3", "data_for_test/pose_demo_3p.png", True),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
-        # ("CameraVidio","data_for_test/WIN_20250520_18_53_11_Pro.mp4",True),
+         ("CameraVidio","data_for_test/WIN_20250520_18_53_11_Pro.mp4",True),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4",True),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4",True),
         # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4",True),
-         ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4",True),
+        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4",True),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),

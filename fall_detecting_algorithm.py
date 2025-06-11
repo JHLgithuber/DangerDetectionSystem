@@ -1,6 +1,6 @@
 import math
 
-def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50):
+def detect_fall_angle(lm2d_list, thresh_num=3, torso_thresh=50, thigh_thresh=50, calf_thresh=40, leg_thresh=30, debug=False,):
     # Mediapipe landmark 좌표 (정규화 좌표)
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
@@ -25,6 +25,8 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     torso_vec = (mid_hip_x - mid_shoulder_x, mid_hip_y - mid_shoulder_y)
     thigh_vec = (mid_knee_x - mid_hip_x, mid_knee_y - mid_hip_y)
     calf_vec = (mid_ankle_x - mid_knee_x, mid_ankle_y - mid_knee_y)
+    left_leg_vec = (left_hip.x - left_ankle.x, left_hip.y - left_ankle.y)
+    right_leg_vec = (right_hip.x - right_ankle.x, right_hip.y - right_ankle.y)
 
     # 수직 방향(0,1)과 각 segment 벡터의 이루는 각도 계산
     def vertical_angle(vec):
@@ -36,6 +38,9 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     angle_torso = vertical_angle(torso_vec)
     angle_thigh = vertical_angle(thigh_vec)
     angle_calf = vertical_angle(calf_vec)
+    angle_left_leg = vertical_angle(left_leg_vec)
+    angle_right_leg = vertical_angle(right_leg_vec)
+
 
     # 각도 출력 (디버깅 용도)
     print(f"Torso Angle: {angle_torso:.2f}°, Thigh Angle: {angle_thigh:.2f}°, Calf Angle: {angle_calf:.2f}°")
@@ -44,10 +49,12 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     fallen_torso = angle_torso > torso_thresh
     fallen_thigh = angle_thigh > thigh_thresh
     fallen_calf = angle_calf > calf_thresh
+    fallen_left_leg = angle_left_leg > leg_thresh
+    fallen_right_leg = angle_right_leg > leg_thresh
 
-    # 최종 판단 (세 부분 중 두 부분 이상 넘어 지면 쓰러짐)
-    fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf])
-    is_fallen = fallen_parts >= 2
+    # 최종 판단 (세 부분 중 한 부분 이상 넘어 지면 쓰러짐)
+    fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_leg, fallen_right_leg,])
+    is_fallen = fallen_parts >= thresh_num
     fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf}"
 
 
@@ -175,12 +182,12 @@ def detect_fall(detection_result, debug=False):
         if result_by_angle[0]:
             if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
             return True
-        elif result_by_recline[0]:
-            if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
-            return True
-        elif result_by_normalization[0]:
-            if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
-            return True
+        #elif result_by_recline[0]:
+        #    if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
+        #    return True
+        #elif result_by_normalization[0]:
+        #    if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
+        #    return True
         else:
             if debug: print("FALL NOT DETECTED")
             return False
