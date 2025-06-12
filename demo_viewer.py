@@ -14,7 +14,16 @@ from yolox.utils import vis
 
 
 # noinspection PyUnusedLocal
-def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
+def visual_from_fall_flag(stream_frame_instance,):
+    """
+    낙상 여부 플래그에 따라 포즈 오버레이 시각화
+
+    Args:
+        stream_frame_instance (StreamFrameInstance): 포즈 및 낙상 정보 포함 프레임 객체
+
+    Returns:
+        np.ndarray: 낙상 시각화가 적용된 프레임
+    """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
@@ -26,11 +35,8 @@ def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
     # 3. 각 객체(사람)별로 skeleton 그린 overlay로 합성
     for crop_object_img, pose_detection, fall_flag in zip(
             crop_object_images, stream_frame_instance.pose_detection_list, stream_frame_instance.fall_flag_list):
-        # (1) crop 크기 만큼 검정 배경 생성
-        # crop_h, crop_w = crop_object_img["crop"].shape[:2]
-        # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
 
-        # (2) overlay에 skeleton 그리기
+        # overlay에 skeleton 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
             pose_detection, img_size=crop_object_img["img_size"], )
 
@@ -39,22 +45,30 @@ def visual_from_fall_flag(stream_frame_instance, cls_conf=0.35):
         else:
             cv2.putText(pose_landmark_overlay, "NOT Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # (3) bbox 좌표
+        # bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
 
-        # (4) 원본 frame의 해당 ROI 영역
+        # 원본 frame의 해당 ROI 영역
         roi = frame[y1_p:y2_p, x1_p:x2_p]
-        # (5) 마스크: overlay 에서 검정이 아닌 부분만 True
+        # 마스크: overlay 에서 검정이 아닌 부분만 True
         mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
-        # (6) ROI에 overlay: mask 부분만 복사
+        # ROI에 overlay: mask 부분만 복사
         roi[mask] = pose_landmark_overlay[mask]
-        # (7) (frame은 numpy view 라서 자동 적용)
 
     return frame
 
 
 # noinspection PyUnusedLocal
-def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
+def visual_from_pose_estimation(stream_frame_instance):
+    """
+    포즈 인식 결과에 대한 원본 프레임에 시각화
+
+    Args:
+        stream_frame_instance (StreamFrameInstance): 포즈 정보 포함 프레임 객체
+
+    Returns:
+        np.ndarray: 스켈레톤 오버레이가 적용된 프레임
+    """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
@@ -89,6 +103,16 @@ def visual_from_pose_estimation(stream_frame_instance, cls_conf=0.35):
 
 
 def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
+    """
+    객체 탐지 결과를 프레임에 시각화
+
+    Args:
+        stream_frame_instance (StreamFrameInstance): 탐지 결과 포함 프레임 객체
+        cls_conf (float): 클래스 confidence 필터 임계값
+
+    Returns:
+        np.ndarray: 시각화된 프레임
+    """
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
@@ -110,33 +134,19 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     return vis_res
 
 
-def visual_from_tracking_serial(stream_frame_instance, cls_conf=0.35):
-    # 프레임 복원
-    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
-    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
-    output = frame.copy()
-    serialized_tracks = stream_frame_instance.human_tracking_serial
-
-    for obj in serialized_tracks:
-        score = obj["confidence"]
-        if score < cls_conf:
-            continue
-
-        x1, y1, x2, y2 = obj["bbox"]
-        cls_name = obj["class"]
-        tid = obj["track_id"]
-
-        label = f"{cls_name}#{tid} ({score:.2f})"
-        color = (0, 255, 0)  # 필요시 cls_name에 따라 색 다르게
-
-        cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(output, label, (x1, y1 - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-    return output
-
 
 def demo_viewer(stream_name, frame, debug=False):
+    """
+    프레임을 화면에 표시
+
+    Args:
+        stream_name (str): 표시할 창 이름
+        frame (np.ndarray): 표시할 영상 프레임
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
+    """
     try:
         if frame is None or not isinstance(frame, np.ndarray):
             print(f"[ERROR] {stream_name}: 유효 하지 않은 프레임")
@@ -152,13 +162,22 @@ def demo_viewer(stream_name, frame, debug=False):
 
 
 def _add_latency_to_frame(frame, captured_datetime):
-    """Calculate latency and add it to the frame."""
+    """
+    프레임에 지연 시간 텍스트 표시
+
+    Args:
+        frame (np.ndarray): 텍스트를 그릴 대상 프레임
+        captured_datetime (datetime): 프레임 캡처 시각
+
+    Returns:
+        None
+    """
     delta = datetime.now() - captured_datetime
     latency_s = int(delta.total_seconds())
     latency_us = int(delta.total_seconds() * 1_000_000)
     latency_text = f"Latency is {latency_us:08d} us, about {latency_s}seconds"
 
-    cv2.putText(
+    cv2.putText(    # 윤곽선
         frame,
         latency_text,
         (20, 20),  # Top-left corner of the frame
@@ -170,7 +189,7 @@ def _add_latency_to_frame(frame, captured_datetime):
     )
 
     # Add text to the top left of the frame
-    cv2.putText(
+    cv2.putText(    # 지연시간
         frame,
         latency_text,
         (20, 20),  # Top-left corner of the frame
@@ -183,6 +202,18 @@ def _add_latency_to_frame(frame, captured_datetime):
 
 
 def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=False):
+    """
+    스트림 프레임을 시각화하는 데모 프로세스
+    큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
+
+    Args:
+        stream_queue_for_process (Queue): StreamFrameInstance 객체가 담긴 큐
+        show_latency (bool): 지연 시간 표시 여부
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
+    """
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
@@ -193,42 +224,33 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                                                               debug=debug)
 
         while True:
-            # instances_per_frame_instance = stream_queue_for_process.get()
             instances_per_frame_instance = next(sorter_gen)
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
             if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.fall_flag_list is not None:
+                if instances_per_frame_instance.fall_flag_list is not None: # 낙상 감지가 완료된 프레임
                     result_frame = visual_from_fall_flag(
                     stream_frame_instance=instances_per_frame_instance,
-                    cls_conf=0.35
                 )
-                elif instances_per_frame_instance.pose_detection_list is not None:
+                elif instances_per_frame_instance.pose_detection_list is not None:  #포즈 감지가 완료된 프레임
                     result_frame = visual_from_pose_estimation(
                         stream_frame_instance=instances_per_frame_instance,
-                        cls_conf=0.35
                     )
-                elif instances_per_frame_instance.human_tracking_serial is not None:
-                    result_frame = visual_from_tracking_serial(
-                        stream_frame_instance=instances_per_frame_instance,
-                        cls_conf=0.35
-                    )
-                elif instances_per_frame_instance.human_detection_numpy is not None:
+                elif instances_per_frame_instance.human_detection_numpy is not None:    #객체 감지가 완료된 프레임
                     result_frame = visual_from_detection_numpy(
                         stream_frame_instance=instances_per_frame_instance,
                         cls_conf=0.35
                     )
-                else:
+                else:   # 별도의 처리가 없었던 프레임
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
                         instances_per_frame_instance,
                         debug=debug
                     )
 
-                # Add latency to the frame
+                # 지연 시간 추가
                 if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
 
-                # Display the updated frame
                 demo_viewer(stream_name, result_frame, debug=debug)
             else:
                 print(f"[INFO] {stream_name} instances_per_frame is None")
@@ -245,13 +267,23 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
 
 
 def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
+    """
+    다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
+    새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
+
+    Args:
+        stream_queue (Queue): StreamFrameInstance 객체가 들어오는 메인 큐
+        show_latency (bool): 지연 시간 표시 여부
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
+    """
     stream_viewer_queue_dict = dict()
     stream_viewer_process_set = set()
     try:
-        # sorted_instance=dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue, buffer_size=100)
         print("[INFO] imshow demo start")
         while True:
-            # stream = next(sorted_instance)
             stream = stream_queue.get()
             stream_name = stream.stream_name
             if stream_name not in stream_viewer_queue_dict:
@@ -259,7 +291,6 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
                 stream_viewer_queue_dict[stream_name] = Queue()
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
-                # process.daemon = True
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -282,6 +313,17 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
 
 
 def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
+    """
+    imshow 데모를 백그라운드 스레드로 시작
+
+    Args:
+        stream_queue (Queue): StreamFrameInstance 객체가 들어오는 메인 큐
+        show_latency (bool): 지연 시간 표시 여부
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        Thread: 실행된 데모 스레드 객체
+    """
     imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
