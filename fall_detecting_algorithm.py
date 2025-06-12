@@ -1,9 +1,22 @@
 import math
 
-from pandas.core.dtypes.inference import is_float
-
-
 def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50, leg_thresh=50, debug=False,):
+    """
+    2D 포즈 각도 기반 낙상 여부 판단
+
+    Args:
+        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+        torso_thresh (float): 상체 기울기 임계각 (deg)
+        thigh_thresh (float): 허벅지 기울기 임계각 (deg)
+        calf_thresh (float): 종아리 기울기 임계각 (deg)
+        leg_thresh (float): 좌/우 종아리 개별 임계각 (deg)
+        debug (bool): 디버그용 출력 여부
+
+    Returns:
+        tuple:
+            - is_fallen (bool): 낙상 판단 결과
+            - fallen_reason (str): 낙상 판정 이유 요약 문자열
+    """
     # Mediapipe landmark 좌표 (정규화 좌표)
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
@@ -31,6 +44,9 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     left_calf_vec = (left_ankle.x - left_knee.x, left_ankle.y - left_knee.y)
     right_calf_vec = (right_ankle.x - right_knee.x, right_ankle.y - right_knee.y)
 
+    if debug:
+        print(f"[FALL_ANGLE] torso_vec: {torso_vec}, thigh_vec: {thigh_vec}, calf_vec: {calf_vec}, left_calf_vec: {left_calf_vec}, right_calf_vec: {right_calf_vec}")
+
     # 수직 방향(0,1)과 각 segment 벡터의 이루는 각도 계산
     def vertical_angle(vec):
         # 수직 방향 (y축 아래 방향)
@@ -38,6 +54,7 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
         angle_deg = math.degrees(math.acos(min(max(dot, -1.0), 1.0)))
         return angle_deg
 
+    # 부위별 각도 계산
     angle_torso = vertical_angle(torso_vec)
     angle_thigh = vertical_angle(thigh_vec)
     angle_calf = vertical_angle(calf_vec)
@@ -64,8 +81,17 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
 
 def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
     """
-    발끝(toe) 또는 뒤꿈치(heel)가 발목보다 위에 있으면 낙상으로 감지
-    :return: (is_fallen, reason_string)
+    발끝 또는 뒤꿈치가 발목보다 위에 있으면 낙상으로 판정
+
+    Args:
+        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+        threshold (float): y좌표 차이 임계값 (기본 0.03)
+        debug (bool): 디버그 출력 여부
+
+    Returns:
+        tuple:
+            - is_fallen (bool): 낙상 여부
+            - reason (str): 판단 근거 문자열
     """
     left_ankle = lm2d_list[27]
     right_ankle = lm2d_list[28]
@@ -101,7 +127,19 @@ def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
 
 # noinspection PyUnusedLocal
 def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
-    #min_max_recline_ratio는 영상에서 보이는 정상적인 신체비율로 설정, 폭 대비 키가 짧아져 보이면 트리거
+    """
+    신체 세로:가로 비율이 낮으면 누운 상태로 판정
+    min_recline_ratio는 영상에서 보이는 정상적인 신체비율로 설정, 폭 대비 키가 짧아져 보이면 트리거
+    Args:
+        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+        min_recline_ratio (float): 넘어짐 판단 기준 세로:가로 비율 임계값
+        debug (bool): 디버그 출력 여부
+
+    Returns:
+        tuple:
+            - is_fallen (bool): 낙상 여부
+            - fallen_reason (str): 비율 비교에 따른 결과 설명
+    """
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
     left_hip = lm2d_list[23]
@@ -129,6 +167,17 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
 
 # noinspection PyUnusedLocal
 def detect_fall_normalized(lm2d_list):
+    """
+    정규화 좌표 기반 낙상 감지 (척추 각도, 비율, 좌우 비대칭 포함)
+
+    Args:
+        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+
+    Returns:
+        tuple:
+            - is_fall_final (bool): 낙상 판단 결과
+            - reason (None): 설명 문자열 (미구현, None 반환)
+    """
     # 2D 정규화 좌표 기반 으로 모든 계산
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
@@ -179,8 +228,16 @@ def detect_fall_normalized(lm2d_list):
 
     return is_fall_final,None
 
-#신뢰도 검사
 def check_visibility_presence(lm2d_list):
+    """
+    주요 관절의 visibility, presence 신뢰도 검사
+
+    Args:
+        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+
+    Returns:
+        bool: 모든 관절이 기준 이상일 경우 True, 하나라도 부족하면 False
+    """
     check_point_list=list()
     check_point_list.append(lm2d_list[11])  #left_shoulder
     check_point_list.append(lm2d_list[12])  #right_shoulder
@@ -196,6 +253,19 @@ def check_visibility_presence(lm2d_list):
     return True
 
 def detect_fall(detection_result, debug=False):
+    """
+    여러 낙상 판단 알고리즘 기반 낙상 감지
+
+    Args:
+        detection_result: pose_landmarks 속성을 포함한 객체 (사람별 랜드마크 리스트)
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        bool or None:
+            - True: 낙상 감지됨
+            - False: 낙상 아님
+            - None: 판단 불가 (신뢰도 부족 또는 landmark 없음)
+    """
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
 
@@ -224,12 +294,12 @@ def detect_fall(detection_result, debug=False):
         elif result_by_feet[0]:
             if debug: print(f"FALL DETECTED by feet: {result_by_feet[1]}")
             return True
-        #elif result_by_recline[0]:
-        #    if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
-        #    return True
-        #elif result_by_normalization[0]:
-        #    if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
-        #    return True
+        # elif result_by_recline[0]:
+        #     if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
+        #     return True
+        # elif result_by_normalization[0]:
+        #     if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
+        #     return True
         else:
             if debug: print("FALL NOT DETECTED")
             return False
