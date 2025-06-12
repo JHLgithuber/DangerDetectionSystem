@@ -269,7 +269,7 @@ def detect_fall(detection_result, debug=False):
     # 2D 정규화 랜드마크 리스트 (list of list)
     pixel_landmarks_list = detection_result.pose_landmarks
 
-    # 둘 중 하나 라도 없으면 원본 반환
+    # 랜드마크 리스트가 없으면 반환
     if not pixel_landmarks_list:
         return None
 
