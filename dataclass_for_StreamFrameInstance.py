@@ -11,6 +11,23 @@ import numpy as np
 
 @dataclass
 class StreamFrameInstance:
+    """
+    스트리밍 프레임 단위의 메타데이터 및 분석 결과를 저장하는 데이터 클래스.
+
+    Attributes:
+        stream_name (str): 해당 프레임이 소속된 스트림의 이름이자 식별자.
+        frame_index (int): 해당 스트림 내에서의 프레임 순번.
+        memory_name (str): 공유 메모리에서 프레임을 참조하기 위한 메모리 이름.
+        height (int): 프레임의 세로 해상도.
+        width (int): 프레임의 가로 해상도.
+        captured_datetime (datetime): 프레임이 수집된 시각. 기본값은 생성 시점의 현재 시간.
+        human_detection_numpy (Optional[np.ndarray]): YOLOX 등에서 추출한 사람 탐지 결과(numpy 배열).
+        human_detection_tsize (int): 탐지 시 사용된 입력 이미지의 크기 (YOLOX의 --tsize).
+        human_tracking_serial (Optional[List[Dict[str, Any]]]): 트래킹 알고리즘 결과로 얻은 사람 식별 정보.
+        pose_detection_list (Optional[np.ndarray]): MediaPipe 등에서 추출한 포즈 인식 결과 리스트.
+        fall_flag_list (Optional[List[bool]]): 포즈 기반 낙상 여부 판단 결과 리스트.
+        bypass_flag (bool): 해당 프레임이 분석 대상에서 제외되어 우회되었는지 여부.
+    """
     stream_name: str
     frame_index: int
     memory_name:str
@@ -27,6 +44,21 @@ class StreamFrameInstance:
 
 
 def save_frame_to_shared_memory(frame, shm_name, debug=False):
+    """
+    주어진 영상 프레임을 지정된 이름의 공유 메모리에 저장
+
+    Args:
+        frame (np.ndarray): 저장할 영상 프레임 (dtype=np.uint8).
+        shm_name (str): 공유 메모리 블록 이름.
+        debug (bool): True일 경우 저장 성공 메시지를 출력
+
+    Returns:
+        str or None: 성공적으로 저장되면 공유 메모리 이름을 반환하며,
+                     오류 발생 시 None을 반환
+
+    Raises:
+        Exception: 공유 메모리 접근 또는 복사 중 예외처리.
+    """
     shm = None
     try:
         shm = SharedMemory(name=shm_name)
@@ -43,7 +75,18 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
 
 
 def load_frame_from_shared_memory(stream_frame_instance, debug=False):
-    """공유 메모리에서 프레임을 로드합니다."""
+    """
+    공유 메모리에서 프레임 로드
+
+    Args:
+        stream_frame_instance (StreamFrameInstance): 프레임 메타정보 포함 객체
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        np.ndarray: 로드된 프레임, 실패 시 검정 프레임 반환
+
+    """
+
     if debug: 
         print(f"[DEBUG] load_frame_from_shared_memory start")
     memory_name = stream_frame_instance.memory_name
@@ -65,7 +108,7 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
         return black_frame
         
     finally:
-        # 항상 공유 메모리 연결을 닫습니다
+        # 항상 공유 메모리 연결을 닫음
         if shm is not None:
             shm.close()
 
