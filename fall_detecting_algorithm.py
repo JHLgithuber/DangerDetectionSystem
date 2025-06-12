@@ -1,6 +1,9 @@
 import math
 
-def detect_fall_angle(lm2d_list, thresh_num=3, torso_thresh=50, thigh_thresh=50, calf_thresh=40, leg_thresh=30, debug=False,):
+from pandas.core.dtypes.inference import is_float
+
+
+def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50, leg_thresh=50, debug=False,):
     # Mediapipe landmark 좌표 (정규화 좌표)
     left_shoulder = lm2d_list[11]
     right_shoulder = lm2d_list[12]
@@ -25,8 +28,8 @@ def detect_fall_angle(lm2d_list, thresh_num=3, torso_thresh=50, thigh_thresh=50,
     torso_vec = (mid_hip_x - mid_shoulder_x, mid_hip_y - mid_shoulder_y)
     thigh_vec = (mid_knee_x - mid_hip_x, mid_knee_y - mid_hip_y)
     calf_vec = (mid_ankle_x - mid_knee_x, mid_ankle_y - mid_knee_y)
-    left_leg_vec = (left_hip.x - left_ankle.x, left_hip.y - left_ankle.y)
-    right_leg_vec = (right_hip.x - right_ankle.x, right_hip.y - right_ankle.y)
+    left_calf_vec = (left_ankle.x - left_knee.x, left_ankle.y - left_knee.y)
+    right_calf_vec = (right_ankle.x - right_knee.x, right_ankle.y - right_knee.y)
 
     # 수직 방향(0,1)과 각 segment 벡터의 이루는 각도 계산
     def vertical_angle(vec):
@@ -38,27 +41,62 @@ def detect_fall_angle(lm2d_list, thresh_num=3, torso_thresh=50, thigh_thresh=50,
     angle_torso = vertical_angle(torso_vec)
     angle_thigh = vertical_angle(thigh_vec)
     angle_calf = vertical_angle(calf_vec)
-    angle_left_leg = vertical_angle(left_leg_vec)
-    angle_right_leg = vertical_angle(right_leg_vec)
-
-
-    # 각도 출력 (디버깅 용도)
-    print(f"Torso Angle: {angle_torso:.2f}°, Thigh Angle: {angle_thigh:.2f}°, Calf Angle: {angle_calf:.2f}°")
+    angle_left_calf = vertical_angle(left_calf_vec)
+    angle_right_calf = vertical_angle(right_calf_vec)
 
     # 쓰러짐 조건
     fallen_torso = angle_torso > torso_thresh
     fallen_thigh = angle_thigh > thigh_thresh
     fallen_calf = angle_calf > calf_thresh
-    fallen_left_leg = angle_left_leg > leg_thresh
-    fallen_right_leg = angle_right_leg > leg_thresh
+    fallen_left_calf = angle_left_calf > leg_thresh
+    fallen_right_calf = angle_right_calf > leg_thresh
+
+
 
     # 최종 판단 (세 부분 중 일정 부분 이상 넘어 지면 쓰러짐)
-    fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_leg, fallen_right_leg,])
-    is_fallen = fallen_parts >= thresh_num
-    fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf} | Left Leg: {fallen_left_leg} | Right Leg: {fallen_right_leg}"
-
+    fallen_reason = f"Torso: {fallen_torso}({angle_torso}) | Thigh: {fallen_thigh}({angle_thigh}) | Calf: {fallen_calf}({angle_calf}) | Left calf: {fallen_left_calf}({angle_left_calf}) | Right calf: {fallen_right_calf}({angle_right_calf})"
+    is_fallen = False
+    if fallen_torso:
+        fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_calf, fallen_right_calf,])
+        is_fallen = fallen_parts >= 4
 
     return is_fallen, fallen_reason
+
+def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
+    """
+    발끝(toe) 또는 뒤꿈치(heel)가 발목보다 위에 있으면 낙상으로 감지
+    :return: (is_fallen, reason_string)
+    """
+    left_ankle = lm2d_list[27]
+    right_ankle = lm2d_list[28]
+    left_toe = lm2d_list[31]
+    right_toe = lm2d_list[32]
+    left_heel = lm2d_list[29]
+    right_heel = lm2d_list[30]
+
+    # 뒤로 넘어짐
+    left_toe_diff = left_ankle.y - left_toe.y
+    right_toe_diff = right_ankle.y - right_toe.y
+    fallen_back = (left_toe_diff > threshold) or (right_toe_diff > threshold)
+
+    # 앞으로 엎어짐
+    left_heel_diff = left_ankle.y - left_heel.y
+    right_heel_diff = right_ankle.y - right_heel.y
+    fallen_front = (left_heel_diff > threshold) or (right_heel_diff > threshold)
+
+    is_fallen = fallen_back or fallen_front
+
+    reason = (
+        f"ToeDiff L:{left_toe_diff:.3f} R:{right_toe_diff:.3f} | "
+        f"HeelDiff L:{left_heel_diff:.3f} R:{right_heel_diff:.3f} | "
+        f"FallenBack: {fallen_back}, FallenFront: {fallen_front}"
+    )
+
+    if debug:
+        print(f"[FALL_FEET] {reason}")
+
+    return is_fallen, reason
+
 
 
 # noinspection PyUnusedLocal
@@ -178,9 +216,13 @@ def detect_fall(detection_result, debug=False):
         result_by_normalization = detect_fall_normalized(lm2d_list)
         result_by_angle = detect_fall_angle(lm2d_list)
         result_by_recline = detect_fall_recline(lm2d_list)
+        result_by_feet = detect_fall_feet(lm2d_list)
 
         if result_by_angle[0]:
             if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
+            return True
+        elif result_by_feet[0]:
+            if debug: print(f"FALL DETECTED by feet: {result_by_feet[1]}")
             return True
         #elif result_by_recline[0]:
         #    if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
