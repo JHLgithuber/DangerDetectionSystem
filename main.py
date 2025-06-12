@@ -14,7 +14,7 @@ def get_args():
         demo="video",
         experiment_name=None,
         name="yolox-x",
-        path="data_for_test/streetTestVideo4.mp4",
+        path=None,
         camid=0,
         show_result=True,
         exp_file=None,
@@ -32,6 +32,22 @@ def get_args():
 
 
 def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
+    """
+    전체 위험 감지 시스템 파이프라인 초기화 및 실행
+
+    Args:
+        url_list (list of tuple): (스트림 이름, URL, is_file 여부) 리스트
+        debug_mode (bool): 디버그 출력 여부
+        show_latency (bool): 프레임에 지연 시간 표시 여부
+        max_frames (int): 스트림별 공유 메모리에 유지할 프레임 수
+
+    Returns:
+        int: 종료 코드 (0: 정상 종료, 1: 예외 종료)
+
+    Raises:
+        RuntimeError: 주요 프로세스 중단 시 watchdog이 감지
+        Exception: 설정 또는 실행 중 기타 예외 발생 가능
+    """
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
     stream_instance_dict = dict()

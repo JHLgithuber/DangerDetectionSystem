@@ -20,6 +20,19 @@ multiprocessing.set_start_method('spawn', force=True)
 
 
 def _inference_worker(input_queue, output_queue, args, all_object=False, debug_mode=False):
+    """
+    YOLOX 모델 기반 추론 워커 프로세스 실행
+    실질적 초론 메서드 실행
+    Args:
+        input_queue (Queue): 입력 프레임 큐
+        output_queue (Queue): 추론 결과 출력 큐
+        args (Namespace): YOLOX 실행 인자
+        all_object (bool): 모든 클래스 검출 여부
+        debug_mode (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
+    """
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
@@ -45,7 +58,19 @@ def _inference_worker(input_queue, output_queue, args, all_object=False, debug_m
         return
 
 class Predictor(object):
-    # noinspection PyUnusedLocal
+    """
+    YOLOX 모델 추론기
+
+    Args:
+        model: 학습된 YOLOX 모델 객체
+        exp: 실험 설정 객체
+        cls_names (list): 클래스 이름 리스트
+        trt_file (str): TensorRT 모델 파일 (사용 안 함)
+        decoder: YOLO 디코더 (선택적)
+        device (str): 'cpu' 또는 'gpu'
+        fp16 (bool): FP16 추론 여부
+        legacy (bool): 구 버전 호환 여부
+    """
     def __init__(
             self,
             model,
@@ -69,7 +94,21 @@ class Predictor(object):
         self.preproc = ValTransform(legacy=legacy)
 
     def inference(self, input_queue, output_queue, all_object=False, debug_mode=False, batch_size=6, max_wait=0.01, ):
-        # 실질적 추론 메서드
+        """
+        실질적 추론 메서드
+        입력 큐로부터 이미지 받아 배치 추론 후 결과 출력 큐에 저장
+
+        Args:
+            input_queue (Queue): 추론 대상 프레임 입력 큐
+            output_queue (Queue): 추론 결과 전달 큐
+            all_object (bool): 모든 클래스 검출 여부
+            debug_mode (bool): 디버그 메시지 출력 여부
+            batch_size (int): 배치 처리 개수
+            max_wait (float): 최대 대기 시간 (초)
+
+        Returns:
+            None
+        """
         batch_inputs = []
         batch_ids = []
         last_collect = time.time()
@@ -136,7 +175,23 @@ class Predictor(object):
 
 
 # noinspection PyUnusedLocal
-def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False,):
+def imageflow_main_proc(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False, ):
+    """
+    멀티 추론 워커 구성 및 실시간 추론 흐름 처리
+    추론 전후 입출력 처리
+
+    Args:
+        predictor (Predictor): YOLOX 추론기
+        args (Namespace): 실행 인자
+        stream_queue (Queue): 프레임 입력 큐
+        return_queue (Queue): 추론 결과 반환 큐
+        worker_num (int): 추론 워커 개수
+        all_object (bool): 모든 클래스 검출 여부
+        debug_mode (bool): 디버그 출력 여부
+
+    Returns:
+        None
+    """
     inference_worker_set = set()
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
@@ -152,13 +207,14 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
     
         while True:
             try:
+                # 받은 프레임을 추론 워커에 분배
                 if not stream_queue.empty():
                     # 큐에서 프레임 객체 꺼내기
                     stream_frame_instance = stream_queue.get()
                     if stream_frame_instance.bypass_flag is False:
                         instance_id = stream_frame_instance.stream_name +'-'+ stream_frame_instance.captured_datetime.strftime(
-                            "%Y%m%d%H%M%S%f")
-                        waiting_instance_dict[instance_id] = stream_frame_instance
+                            "%Y%m%d%H%M%S%f")   # 프레임별 ID생성
+                        waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
                         frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
                         input_queue.put({"img": frame, "id": instance_id})
                         if debug_mode: print(f"input_queue put {instance_id}")
@@ -166,13 +222,14 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
                         return_queue.put(stream_frame_instance)
 
 
+                #추론 완료된 결과를 기존 인스턴스에 매칭 및 삽입 후 리턴
                 if not output_queue.empty():
                     output_dict = output_queue.get()
                     if output_dict["id"] in waiting_instance_dict:
                         if return_queue.full():
                             return_queue.get()
-                        output_frame_instance = waiting_instance_dict.pop(output_dict["id"])
-                        output_frame_instance.human_detection_numpy = output_dict["output_numpy"]
+                        output_frame_instance = waiting_instance_dict.pop(output_dict["id"])    # id로 인스턴스 매칭
+                        output_frame_instance.human_detection_numpy = output_dict["output_numpy"]   # 추론결과 삽입
                         return_queue.put(output_frame_instance)
                     else:
                         logger.info("output_dict id not found")
@@ -193,6 +250,21 @@ def imageflow_demo(predictor, args, stream_queue, return_queue, worker_num=4, al
 
 
 def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False, debug_mode=False):
+    """
+    YOLOX 추론 파이프라인 전체 초기화 및 메인 프로세스 실행
+
+    Args:
+        exp: 실험 설정 객체 (YOLOX Experiment)
+        args (Namespace): 실행 인자
+        stream_queue (Queue): 실시간 프레임 입력 큐
+        return_queue (Queue): 추론 결과 출력 큐
+        process_num (int): 추론 워커 프로세스 개수
+        all_object (bool): 모든 클래스 검출 여부
+        debug_mode (bool): 디버그 출력 여부
+
+    Returns:
+        Process: 실행된 메인 프로세스 객체
+    """
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
 
@@ -228,7 +300,7 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
 
     imageflow_demo_process = Process(
         name="imageflow_demo_MAIN_process",
-        target=imageflow_demo,
+        target=imageflow_main_proc,
         args=(predictor, args, stream_queue, return_queue, process_num, all_object, debug_mode)
     )
     imageflow_demo_process.daemon = False
