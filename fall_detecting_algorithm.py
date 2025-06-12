@@ -52,10 +52,10 @@ def detect_fall_angle(lm2d_list, thresh_num=3, torso_thresh=50, thigh_thresh=50,
     fallen_left_leg = angle_left_leg > leg_thresh
     fallen_right_leg = angle_right_leg > leg_thresh
 
-    # 최종 판단 (세 부분 중 한 부분 이상 넘어 지면 쓰러짐)
+    # 최종 판단 (세 부분 중 일정 부분 이상 넘어 지면 쓰러짐)
     fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_leg, fallen_right_leg,])
     is_fallen = fallen_parts >= thresh_num
-    fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf}"
+    fallen_reason = f"Torso: {fallen_torso} | Thigh: {fallen_thigh} | Calf: {fallen_calf} | Left Leg: {fallen_left_leg} | Right Leg: {fallen_right_leg}"
 
 
     return is_fallen, fallen_reason

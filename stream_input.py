@@ -10,7 +10,7 @@ from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 class RtspStream:
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
-                 ignore_frame=0, startup_max_frame_count=60, debug=False, is_file=False):
+                 ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp"):
         self.startup_max_frame_count = startup_max_frame_count
         self.startup_pass=False
         self.running = True
@@ -18,7 +18,7 @@ class RtspStream:
         self.stream_start_index = None
         self.stream_thread = None
         self.rtsp_url = rtsp_url
-        self.is_file = is_file
+        self.format = media_format
         self.stream_name = stream_name
         self.metadata_queue = metadata_queue
         self.debug = debug
@@ -32,7 +32,12 @@ class RtspStream:
 
     def _get_first_frame(self):
         try:
-            container = av.open(self.rtsp_url, options={'rtsp_transport': 'tcp'})
+            if self.format == "rtsp":
+                container = av.open(self.rtsp_url, options={'rtsp_transport': 'tcp'})
+            elif self.format == "file":
+                container = av.open(self.rtsp_url)
+            else:
+                container = av.open(self.rtsp_url, format=self.format)
             frame = next(container.decode(video=0))
             img = frame.to_ndarray(format='bgr24')
             self.shape = img.shape
@@ -110,18 +115,27 @@ class RtspStream:
 
     def run_stream(self, manager_smm,):
         self.manager_smm = manager_smm
-        if not self.is_file:
+        if self.format == "rtsp":
             self.stream_thread = Thread(target=self._update_frame_from_rtsp, name=self.stream_name,
                                         args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
                                               self.debug,
                                               self.bypass_frame, self.receive_frame, self.ignore_frame,
                                               ))
-        else:
+        elif self.format == "file":
             self.stream_thread = Thread(target=self._update_frame_from_file, name=self.stream_name,
                                         args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
                                               self.debug,
                                               self.bypass_frame, self.receive_frame, self.ignore_frame,
                                               ))
+        else :
+            self.stream_thread = Thread(target=self._update_frame_from_custom_format, name=self.stream_name,
+                                        args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
+                                              self.debug,
+                                              self.bypass_frame, self.receive_frame, self.ignore_frame,
+                                        )
+                                        )
+
+            print("stream_input.py: run_stream: error")
         self.stream_thread.daemon = True
         self.stream_thread.start()
         return self.stream_thread
@@ -224,6 +238,27 @@ class RtspStream:
 
         except Exception as e:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
+
+    def _update_frame_from_custom_format(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
+                                         receive_frame, ignore_frame, ):
+        try:
+            start_index = self._stream_slow_starting_up()
+            while True:
+                if self.running is False:
+                    break
+                print(f"[INFO] Video File: {rtsp_url} will OPEN")
+                container = av.open(rtsp_url, format=self.format)
+                frame_iterator = container.decode(video=0)
+                self._process_frames_common(
+                    frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
+                    ignore_frame, start_index,
+                )
+                print("endVideo")
+                container.close()
+
+        except Exception as e:
+            print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
+
 
     def kill_stream(self):
         self.running = False

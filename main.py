@@ -52,9 +52,9 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
-                                                    receive_frame=1, ignore_frame=0,
+                                                    receive_frame=1, ignore_frame=1,
                                                     startup_max_frame_count=200 // logical_cores,
-                                                    is_file=is_file, debug=debug_mode)
+                                                    media_format=is_file, debug=debug_mode)
         print(f"stream_many: {stream_many}")
 
         # 공유메모리 설정
@@ -171,28 +171,30 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        # ("TestFile_1", "./data_for_test/streetTestVideo.mp4", True),
-        # ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", True),
-        # ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", True),
-        # ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", True),
-        # ("Image_1", "./data_for_test/imageByCG.png", True),
-        # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", True),
-        # ("Image_3", "data_for_test/pose_demo_3p.png", True),
-        # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", True),
-         ("CameraVidio","data_for_test/WIN_20250520_18_53_11_Pro.mp4",True),
-        # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4",True),
-        # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4",True),
-        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4",True),
-        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4",True),
-        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", False),
-        # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", False),
-        # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", False),
-        # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", False),
-        # ("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", False),
-        # ("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream", False),
-        # ("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream", False),
-        # ("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream", False),
-        # ("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", False),
-        # ("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", False),
+        # ("TestFile_1", "./data_for_test/streetTestVideo.mp4", "file"),
+        # ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", "file"),
+        # ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", "file"),
+        # ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", "file"),
+        # ("Image_1", "./data_for_test/imageByCG.png", "file"),
+        # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
+        # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
+        # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
+        # ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
+        # ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+         ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
+        # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
+        # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
+        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
+        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
+        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
+        # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
+        # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
+        # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", "rtsp"),
+        # ("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", "rtsp"),
+        # ("TEST_5", "rtsp://210.99.70.120:1935/live/cctv073.stream", "rtsp"),
+        # ("TEST_6", "rtsp://210.99.70.120:1935/live/cctv074.stream", "rtsp"),
+        # ("TEST_7", "rtsp://210.99.70.120:1935/live/cctv075.stream", "rtsp"),
+        # ("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", "rtsp"),
+        # ("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", "rtsp"),
     ]
     main(test_url_list)
