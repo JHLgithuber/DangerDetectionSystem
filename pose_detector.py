@@ -13,18 +13,23 @@ from mediapipe.tasks.python import vision
 
 def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=True, debug=False):
     """
-    stream_frame_instance 에서 감지된 객체들을 padding 만큼 여백을 두고 잘라냅니다.
-    - padding: 바운딩박스 주변에 추가할 픽셀 여백
-    - cls_conf: confidence threshold 이하의 객체는 무시
-    Returns: 리스트 of dict, each dict has:
-        {
-            'crop': np.ndarray,        # 잘라낸 이미지
-            'img_size': (h, w),        # 이미지 크기 (h, w)
-            'class': int or str,       # 클래스 아이디 (또는 이름)
-            'score': float,            # confidence 점수
-            'bbox': (x1, y1, x2, y2),  # 잘라낸 영역 (with padding)
-            'track_id': int or None    # tracking 경우의 ID (detection 경우 None)
-        }
+    stream_frame_instance 에서 감지된 객체들을 padding 만큼 여백을 두고 잘라내어 반환
+
+    Args:
+        stream_frame_instance (StreamFrameInstance): 입력 프레임 객체
+        padding (int): 바운딩박스 여백 (픽셀 단위)
+        cls_conf (float): confidence 임계값 이하 객체는 무시
+        need_frame (bool): crop 이미지가 실제로 필요한 경우 True
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        list of dict: 각 객체 정보
+            - 'crop': 잘라낸 이미지 (or None)
+            - 'img_size': (h, w)
+            - 'class': 클래스 ID 또는 이름
+            - 'score': confidence 점수
+            - 'bbox': (x1, y1, x2, y2) with padding
+            - 'track_id': 트래킹 ID 또는 None
     """
     h, w = stream_frame_instance.height, stream_frame_instance.width
     frame = None
@@ -103,14 +108,15 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
 
 def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, debug=False):
     """
-    pose_landmarker를 사용하여 이미지에서 인물(사람)의 랜드마크를 추출합니다.
-    - stream_frame_instance: StreamFrameInstance
-    - debug: debug 여부
-    Returns: list of dict, each dict has:
-        {
-            'crop': np.ndarray,        # 잘라낸 이미지
-            'class': int or str,       # 클래스 아이디 (또는 이름)
-            'score': float,            # confidence 점수
+    pose_landmarker를 사용하여 이미지에서 인물(사람)의 랜드마크를 추출하는 워커 프로세스
+
+    Args:
+        input_frame_instance_queue (Queue): 입력 프레임 큐 (StreamFrameInstance)
+        output_frame_instance_queue (Queue): 포즈 결과 포함된 프레임 출력 큐
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
     """
     pose_landmarker = PoseDetector(current_process_name=current_process().name, debug=debug)
     try:
@@ -129,6 +135,18 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
         print(f"[ERROR] pose_landmarker process: {e}")
 
 def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, process_num=8, debug=False):
+    """
+    포즈 추정 워커 프로세스 다중 실행
+
+    Args:
+        input_frame_instance_queue (Queue): 입력 StreamFrameInstance 큐
+        output_frame_instance_queue (Queue): 포즈 결과 포함한 출력 큐
+        process_num (int): 생성할 워커 프로세스 수
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        list of Process: 실행된 프로세스 객체 리스트
+    """
     processes=list()
     for i in range(process_num):
         process = Process(name= f"_pose_landmarker_process-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, debug))
@@ -139,6 +157,16 @@ def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue,
     return processes
 
 class PoseDetector:
+    """
+    MediaPipe 기반 포즈 추정기 클래스
+
+    Args:
+        current_process_name (str): 프로세스 이름 (디버깅용)
+        model_asset_path (str): 모델 파일 경로 (.task 파일)
+        num_poses (int): 최대 추정 인원 수
+        show_now (bool): 실시간 결과 시각화 여부
+        debug (bool): 디버그 출력 여부
+    """
     def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, show_now=False, debug=False):
         base_options = python.BaseOptions(model_asset_path=model_asset_path)
         options = vision.PoseLandmarkerOptions(
@@ -152,9 +180,18 @@ class PoseDetector:
         if self.debug: print(f"pose_landmarker: {self.detector}")
 
     def detect(self, stream_frame_instance, debug=False):
+        """
+        crop 이미지에서 포즈 추정 실행
+
+        Args:
+            stream_frame_instance (StreamFrameInstance): 입력 프레임 객체
+            debug (bool): 디버그 출력 여부
+
+        Returns:
+            list: 각 객체별 pose 결과 리스트 (MediaPipe Result 또는 빈 리스트)
+        """
         crop_object_images = crop_objects(stream_frame_instance)
         pose_landmarker_results = list()
-        #crop_object_img=None
 
         # 포즈 감지용 화면 초기화
         pose_demo_name="DRAWN IMAGE of ERROR"
@@ -191,16 +228,29 @@ class PoseDetector:
 
 # noinspection PyUnresolvedReferences
 def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_size=None, debug=False):
+    """
+      포즈 추정 결과를 이미지에 시각화 (랜드마크 + 낙상 텍스트)
+
+      Args:
+          detection_result: MediaPipe pose_landmarker 결과 객체
+          rgb_image (np.ndarray or None): 시각화할 원본 이미지, None이면 검정 배경 생성
+          img_size (tuple or None): rgb_image가 없을 때 사용할 (h, w)
+          debug (bool): 디버그 메시지 출력 여부
+
+      Returns:
+          np.ndarray: 랜드마크와 낙상 결과가 그려진 이미지
+
+      Raises:
+          Exception: 이미지 생성 또는 랜드마크 그리기 중 오류 가능 (내부 미처리)
+      """
     # 2D 정규화 랜드 마크 리스트 (list of list)rgb_image
     pixel_landmarks_list = detection_result.pose_landmarks
 
     # 이미지 미포함 시 검정 화면에 처리
     if rgb_image is None:
-        #crop_h, crop_w = rgb_image.shape[:2]
         annotated_image=np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
     else:
         annotated_image = np.copy(rgb_image)
-    #h, w = annotated_image.shape[:2]
 
     # 랜드 마크 없으면 원본 반환
     if not pixel_landmarks_list:
