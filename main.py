@@ -57,7 +57,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     try:
         # 프로세스 코어수 연동
         logical_cores = cpu_count()
-        yolox_cores = max(int(logical_cores // 2.5), 2)
+        yolox_cores = min(max(int(logical_cores // 2.5), 2), 6)
         mp_cores = max(int((logical_cores - yolox_cores) // 1.2), 2)
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 

@@ -1,14 +1,12 @@
 name: DangerDetectionSystem
 channels:
-  - conda-forge
-  - pytorch
-  - nvidia
   - defaults
 dependencies:
-  - python=3.8
-  - pytorch-cuda=11.8
-  - av
-  - opencv
-  - torchaudio
-  - torchvision
+  - python=3.10
+  - opencv=4.10.0
+  - cmake=3.31.2
+  - cudatoolkit=11.8.0
   - notebook
+  - numpy
+  - flask
+prefix: C:\Users\User\anaconda3\envs\DangerDetectionSystem

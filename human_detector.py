@@ -18,8 +18,25 @@ from yolox.utils import get_model_info, postprocess
 
 multiprocessing.set_start_method('spawn', force=True)
 
+def gpu_index_generator():
+    """
+    시스템의 GPU 인덱스를 순환적으로 반환하는 제너레이터.
+    예: GPU가 3개면 0 → 1 → 2 → 0 → 1 → 2 → ... 계속 반복
+    """
+    gpu_count = torch.cuda.device_count()
+    if gpu_count == 0:
+        raise RuntimeError("GPU가 존재하지 않습니다.")
 
-def _inference_worker(input_queue, output_queue, args, all_object=False, debug_mode=False):
+    idx = 0
+    while True:
+        print (f"GPU index: {idx}")
+        yield idx
+        idx = (idx + 1) % gpu_count
+    # while True:
+    #     yield 1
+
+
+def _inference_worker(input_queue, output_queue, args, gpu_index, all_object=False, debug_mode=False):
     """
     YOLOX 모델 기반 추론 워커 프로세스 실행
     실질적 초론 메서드 실행
@@ -33,11 +50,12 @@ def _inference_worker(input_queue, output_queue, args, all_object=False, debug_m
     Returns:
         None
     """
+
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt["model"])
-    model.cuda()
+    model.cuda(device=gpu_index)
     model.eval()
 
     predictor = Predictor(
@@ -196,13 +214,14 @@ def imageflow_main_proc(predictor, args, stream_queue, return_queue, worker_num=
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
     waiting_instance_dict = dict()
-
+    gpu_gen = gpu_index_generator()
     try:
         for index in range(worker_num):
-            inference_worker_process = Process(name=f"_inference_worker-{index}", target=_inference_worker, args=(input_queue, output_queue, args, all_object, debug_mode))
+            gpu_index = next(gpu_gen)
+            inference_worker_process = Process(name=f"_inference_worker-{index} of GPU{gpu_index}", target=_inference_worker, args=(input_queue, output_queue, args, gpu_index, all_object, debug_mode))
             inference_worker_process.daemon = True
             inference_worker_process.start()
-            if debug_mode: print(f"inference_worker_process {inference_worker_process.pid} start")
+            if debug_mode: print(f"inference_worker_process of GPU{gpu_index} {inference_worker_process.pid} start")
             inference_worker_set.add(inference_worker_process)
     
         while True:
