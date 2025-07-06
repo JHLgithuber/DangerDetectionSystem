@@ -11,7 +11,7 @@ import dataclass_for_StreamFrameInstance
 from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 from yolox.data.datasets import COCO_CLASSES
 from yolox.utils import vis
-
+import stream_server as stream
 
 # noinspection PyUnusedLocal
 def visual_from_fall_flag(stream_frame_instance,):
@@ -135,6 +135,8 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
 
 
 
+
+
 def demo_viewer(stream_name, frame, debug=False):
     """
     프레임을 화면에 표시
@@ -160,6 +162,31 @@ def demo_viewer(stream_name, frame, debug=False):
     except Exception as e:
         print(f"[ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
+def web_viewer(stream_name, frame, server_queue, debug=False):
+    """
+    frame을 웹에 표시
+
+    Args:
+        stream_name (str): 표시할 창 이름
+        frame (np.ndarray): 표시할 영상 프레임
+        server_queue : 서버 큐
+        debug (bool): 디버그 메시지 출력 여부
+
+    Returns:
+        None
+    """
+    try:
+        if frame is None or not isinstance(frame, np.ndarray):
+            print(f"[web_viewer ERROR] {stream_name}: 유효 하지 않은 프레임")
+
+        if frame.size == 0:
+            print(f"[web_viewer ERROR] {stream_name}: 빈 프레임")
+
+        if debug: print(f"[web_viewer DEBUG] {stream_name}: 프레임 shape: {frame.shape}, dtype: {frame.dtype}")
+        server_queue.put((stream_name, frame))
+
+    except Exception as e:
+        print(f"[web_viewer ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 def _add_latency_to_frame(frame, captured_datetime):
     """
@@ -201,7 +228,7 @@ def _add_latency_to_frame(frame, captured_datetime):
     )
 
 
-def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=False):
+def _update_imshow_process(stream_queue_for_process, server_queue, show_latency=False, debug=False):
     """
     스트림 프레임을 시각화하는 데모 프로세스
     큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
@@ -251,7 +278,13 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
                 # 지연 시간 추가
                 if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
 
+
+
                 demo_viewer(stream_name, result_frame, debug=debug)
+                if server_queue is not None:
+                    if debug: print(f"[DEBUG] {stream_name} send to server")
+                    web_viewer(stream_name, result_frame, server_queue, debug=debug)
+
             else:
                 print(f"[INFO] {stream_name} instances_per_frame is None")
                 break
@@ -266,7 +299,7 @@ def _update_imshow_process(stream_queue_for_process, show_latency=False, debug=F
         print(f"[INFO] DEMO VIEWER of {stream_name} ended by KeyboardInterrupt")
 
 
-def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
+def _show_imshow_demo(stream_queue, server_queue, show_latency=False, debug=False):
     """
     다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
     새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
@@ -290,7 +323,7 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
-                                  args=(stream_viewer_queue_dict[stream_name], show_latency, debug))
+                                  args=(stream_viewer_queue_dict[stream_name], server_queue, show_latency, debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -312,7 +345,7 @@ def _show_imshow_demo(stream_queue, show_latency=False, debug=False):
         __terminate_process()
 
 
-def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
+def start_imshow_demo(stream_queue, server_queue=None, show_latency=False, debug=False, ):
     """
     imshow 데모를 백그라운드 스레드로 시작
 
@@ -324,7 +357,7 @@ def start_imshow_demo(stream_queue, show_latency=False, debug=False, ):
     Returns:
         Thread: 실행된 데모 스레드 객체
     """
-    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, show_latency, debug))
+    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, server_queue,show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread

@@ -8,6 +8,7 @@ import pose_detector
 from demo_viewer import start_imshow_demo
 from stream_input import RtspStream
 from yolox.exp import get_exp
+import stream_server as stream
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -84,9 +85,14 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
             shm_names_dict[name] = shm_name
 
 
+        #스트리밍 서버 설정
+        server_queue = Queue(maxsize=3 * stream_many)
+        stream.run_stream_server(server_queue, host='0.0.0.0', port=5000)
+
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
-        demo_thread = start_imshow_demo(output_metadata_queue, show_latency=show_latency, debug=debug_mode)
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, show_latency=show_latency, debug=debug_mode)
+
 
 
         # YOLOX ObjectDetection
@@ -187,21 +193,21 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        # ("TestFile_1", "./data_for_test/streetTestVideo.mp4", "file"),
-        # ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", "file"),
-        # ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", "file"),
-        # ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", "file"),
+        #  ("TestFile_1", "./data_for_test/streetTestVideo.mp4", "file"),
+        #  ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", "file"),
+        #  ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", "file"),
+        #  ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", "file"),
         # ("Image_1", "./data_for_test/imageByCG.png", "file"),
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
         # ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-         ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+        # ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
         # ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
-        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
-        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
+         ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
+         ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
@@ -213,4 +219,5 @@ if __name__ == "__main__":
         # ("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", "rtsp"),
         # ("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", "rtsp"),
     ]
+    #stream.initialize_stream_server(host='0.0.0.0', port=5000)
     main(test_url_list)
