@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 import torch
-
+import platform
 import dataclass_for_StreamFrameInstance
 from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 from yolox.data.datasets import COCO_CLASSES
@@ -368,20 +368,27 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     imshow_demo_thread.start()
     return imshow_demo_thread
 
-
 def is_headless_cv2():
-    # 리눅스나 맥에서 DISPLAY 없으면 무조건 헤드리스
-    if not os.environ.get("DISPLAY"):
-        return True
+    """
+    안전하게 OpenCV GUI 기능이 비활성화된(headless) 환경인지 판단.
+    - DISPLAY 환경변수로 X 서버 여부 확인 (Linux/macOS)
+    - OpenCV 빌드 정보에서 GUI 백엔드 지원 여부 확인
 
-    # OpenCV 빌드 정보 확인
+    Returns:
+        bool: True이면 headless 환경, False이면 GUI 사용 가능
+    """
+    # 1. DISPLAY 환경 변수 확인 (리눅스/macOS 한정)
+    if platform.system() in ["Linux", "Darwin"]:
+        if not os.environ.get("DISPLAY"):
+            return True  # X 서버 없음
+
+    # 2. OpenCV 빌드 정보에서 GUI 백엔드 지원 여부 확인
     try:
         info = cv2.getBuildInformation()
-        gui_backends = ["GUI:", "GTK", "Qt", "Win32", "Carbon", "Cocoa"]
-        for line in info.splitlines():
-            if any(backend in line for backend in gui_backends):
-                if "NO" not in line:
-                    return False
-        return True
+        gui_lines = [line for line in info.splitlines() if "GUI:" in line or any(g in line for g in ["GTK", "Qt", "Win32", "Cocoa", "Carbon"])]
+        for line in gui_lines:
+            if "YES" in line or "ON" in line:
+                return False  # GUI 지원됨
+        return True  # GUI 백엔드가 모두 NO인 경우
     except Exception:
-        return True  # 정보 얻기 실패 시 헤드리스로 간주
+        return True  # 정보 조회 실패 → 보수적으로 headless로 간주

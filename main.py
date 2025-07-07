@@ -91,7 +91,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=True, show_latency=show_latency, debug=debug_mode)
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=False, show_latency=show_latency, debug=debug_mode)
 
 
 
@@ -219,5 +219,4 @@ if __name__ == "__main__":
         # ("TEST_8", "rtsp://210.99.70.120:1935/live/cctv076.stream", "rtsp"),
         # ("TEST_9", "rtsp://210.99.70.120:1935/live/cctv077.stream", "rtsp"),
     ]
-    #stream.initialize_stream_server(host='0.0.0.0', port=5000)
     main(test_url_list)

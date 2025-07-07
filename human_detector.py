@@ -63,7 +63,8 @@ def _inference_worker(input_queue, output_queue, args, gpu_index, all_object=Fal
         exp=exp,
         device=args.device,
         fp16=args.fp16,
-        legacy=args.legacy
+        legacy=args.legacy,
+        gpu_index=gpu_index,
     )
     if debug_mode: print("predictor init")
     try: predictor.inference(input_queue=input_queue, output_queue=output_queue, all_object=all_object, debug_mode=debug_mode)
@@ -99,7 +100,9 @@ class Predictor(object):
             device="cpu",
             fp16=False,
             legacy=False,
+            gpu_index=0, 
     ):
+        self.gpu_index = gpu_index
         self.model = model
         self.cls_names = cls_names
         self.decoder = decoder
@@ -149,7 +152,7 @@ class Predictor(object):
             # (B, C, H, W) 텐서로 변환
             batch_tensor = torch.from_numpy(np.stack(imgs, axis=0)).float()
             if self.device == "gpu":
-                batch_tensor = batch_tensor.cuda()  # GPU로 업로드
+                batch_tensor = batch_tensor.to(device=f'cuda:{self.gpu_index}')
                 if self.fp16:
                     batch_tensor = batch_tensor.half()  # to FP16
 
@@ -299,11 +302,11 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     model = exp.get_model()
     logger.info("Model Summary: {}".format(get_model_info(model, exp.test_size)))
 
-    if args.device == "gpu":
-        model.cuda()
-        if args.fp16:
-            model.half()  # to FP16
-    model.eval()
+    #if args.device == "gpu":
+    #    model.cuda()
+    #    if args.fp16:
+    #        model.half()  # to FP16
+    #model.eval()
 
     ckpt_file = args.ckpt
     logger.info("loading checkpoint")
