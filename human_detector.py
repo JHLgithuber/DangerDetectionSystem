@@ -16,6 +16,8 @@ from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
 from yolox.utils import get_model_info, postprocess
 
+#TODO: 굳이 YOLOX를 써야 하는가? cv2에 인간 잡아주는것이 있을 텐데
+
 multiprocessing.set_start_method('spawn', force=True)
 
 def gpu_index_generator():

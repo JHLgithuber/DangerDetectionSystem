@@ -9,6 +9,7 @@ import dataclass_for_StreamFrameInstance
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
+#TODO: mediapipe가 GPU를 사용하도록 할 수 있을 텐데
 
 def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=True, debug=False):
     """

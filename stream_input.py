@@ -23,6 +23,9 @@ class RtspStream:
         debug (bool): 디버그 출력 여부
         media_format (str): 소스 형식 ('rtsp', 'file', 커스텀 포맷 등)
     """
+
+    #TODO: Resize 추가
+
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
                  ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp"):
         self.startup_max_frame_count = startup_max_frame_count
