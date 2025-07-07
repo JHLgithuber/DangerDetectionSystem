@@ -118,7 +118,7 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
     row_img = frame.copy()
-    output = torch.tensor(stream_frame_instance.human_detection_numpy, dtype=torch.float32)
+    output = stream_frame_instance.human_detection_numpy
 
     if output is None:
         return row_img

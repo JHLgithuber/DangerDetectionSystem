@@ -72,8 +72,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
                      stream_frame_instance.human_detection_tsize)
         ratio = min(test_size[0] / h, test_size[1] / w)
 
-        output = torch.tensor(stream_frame_instance.human_detection_numpy,
-                              dtype=torch.float32)
+        output = stream_frame_instance.human_detection_numpy
         if output.numel() == 0:
             return crops
 
