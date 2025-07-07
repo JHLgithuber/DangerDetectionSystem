@@ -5,7 +5,6 @@ from mediapipe.framework.formats import landmark_pb2
 import mediapipe as mp
 import fall_detecting_algorithm
 import numpy as np
-import torch
 import dataclass_for_StreamFrameInstance
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision

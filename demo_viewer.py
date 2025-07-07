@@ -5,7 +5,6 @@ from threading import Thread
 import os
 import cv2
 import numpy as np
-import torch
 import platform
 import dataclass_for_StreamFrameInstance
 from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
