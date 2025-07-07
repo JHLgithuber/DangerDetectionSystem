@@ -180,7 +180,7 @@ class Predictor(object):
                         mask = out[:, 6] == 0
                         out = out[mask]
                     output_queue.put({
-                        "output_numpy": out.numpy(),
+                        "output_numpy": out,
                         "id": fid,
                         "infer_time": infer_time
                     })
@@ -254,7 +254,10 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                         if return_queue.full():
                             return_queue.get()
                         output_frame_instance = waiting_instance_dict.pop(output_dict["id"])    # id로 인스턴스 매칭
-                        output_frame_instance.human_detection_numpy = torch.tensor(output_dict["output_numpy"], dtype=torch.float32)   # 추론결과 삽입
+                        if output_dict["output_numpy"] is None:
+                            output_frame_instance.human_detection_numpy = None
+                        else:
+                            output_frame_instance.human_detection_numpy = output_dict["output_numpy"]   # 추론결과 삽입
                         return_queue.put(output_frame_instance)
                     else:
                         logger.info("output_dict id not found")
