@@ -51,15 +51,18 @@ def _inference_worker(input_queue, output_queue, args, gpu_index, all_object=Fal
         None
     """
 
+    torch.cuda.set_device(gpu_index)
     exp = get_exp(args.exp_file, args.name)
     model = exp.get_model()
+
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt["model"])
-    model.cuda(device=gpu_index)
+    model.to(f'cuda:{gpu_index}')
     model.eval()
 
     predictor = Predictor(
         model=model,
+        args=args,
         exp=exp,
         device=args.device,
         fp16=args.fp16,
@@ -93,6 +96,7 @@ class Predictor(object):
     def __init__(
             self,
             model,
+            args,
             exp,
             cls_names=COCO_CLASSES,
             trt_file=None,
@@ -196,13 +200,12 @@ class Predictor(object):
 
 
 # noinspection PyUnusedLocal
-def imageflow_main_proc(predictor, args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False, ):
+def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_object=False, debug_mode=False, ):
     """
     멀티 추론 워커 구성 및 실시간 추론 흐름 처리
     추론 전후 입출력 처리
 
     Args:
-        predictor (Predictor): YOLOX 추론기
         args (Namespace): 실행 인자
         stream_queue (Queue): 프레임 입력 큐
         return_queue (Queue): 추론 결과 반환 큐
@@ -302,12 +305,6 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     model = exp.get_model()
     logger.info("Model Summary: {}".format(get_model_info(model, exp.test_size)))
 
-    #if args.device == "gpu":
-    #    model.cuda()
-    #    if args.fp16:
-    #        model.half()  # to FP16
-    #model.eval()
-
     ckpt_file = args.ckpt
     logger.info("loading checkpoint")
     ckpt = torch.load(ckpt_file, map_location="cpu", weights_only=True)
@@ -315,15 +312,10 @@ def main(exp, args, stream_queue, return_queue, process_num=4, all_object=False,
     model.load_state_dict(ckpt["model"])
     logger.info("loaded checkpoint done.")
 
-    predictor = Predictor(
-        model, exp, COCO_CLASSES, None, None,
-        args.device, args.fp16, args.legacy,
-    )
-
     imageflow_demo_process = Process(
         name="imageflow_demo_MAIN_process",
         target=imageflow_main_proc,
-        args=(predictor, args, stream_queue, return_queue, process_num, all_object, debug_mode)
+        args=(args, stream_queue, return_queue, process_num, all_object, debug_mode)
     )
     imageflow_demo_process.daemon = False
     return imageflow_demo_process
