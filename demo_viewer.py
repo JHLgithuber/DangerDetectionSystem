@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from multiprocessing import Process, Queue
 from threading import Thread
-
+import os
 import cv2
 import numpy as np
 import torch
@@ -228,7 +228,7 @@ def _add_latency_to_frame(frame, captured_datetime):
     )
 
 
-def _update_imshow_process(stream_queue_for_process, server_queue, show_latency=False, debug=False):
+def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, debug=False):
     """
     스트림 프레임을 시각화하는 데모 프로세스
     큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
@@ -244,8 +244,9 @@ def _update_imshow_process(stream_queue_for_process, server_queue, show_latency=
     stream_name = stream_queue_for_process.get().stream_name
     print(f"[INFO] {stream_name} imshow demo process start")
     try:
-        cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(stream_name, 800, 600)
+        if not headless:
+            cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(stream_name, 800, 600)
 
         sorter_gen = dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue_for_process,
                                                               debug=debug)
@@ -280,7 +281,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, show_latency=
 
 
 
-                demo_viewer(stream_name, result_frame, debug=debug)
+                if not headless: demo_viewer(stream_name, result_frame, debug=debug)
                 if server_queue is not None:
                     if debug: print(f"[DEBUG] {stream_name} send to server")
                     web_viewer(stream_name, result_frame, server_queue, debug=debug)
@@ -299,7 +300,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, show_latency=
         print(f"[INFO] DEMO VIEWER of {stream_name} ended by KeyboardInterrupt")
 
 
-def _show_imshow_demo(stream_queue, server_queue, show_latency=False, debug=False):
+def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, debug=False):
     """
     다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
     새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
@@ -323,7 +324,7 @@ def _show_imshow_demo(stream_queue, server_queue, show_latency=False, debug=Fals
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
-                                  args=(stream_viewer_queue_dict[stream_name], server_queue, show_latency, debug))
+                                  args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency, debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -345,19 +346,42 @@ def _show_imshow_demo(stream_queue, server_queue, show_latency=False, debug=Fals
         __terminate_process()
 
 
-def start_imshow_demo(stream_queue, server_queue=None, show_latency=False, debug=False, ):
+def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, debug=False, ):
     """
     imshow 데모를 백그라운드 스레드로 시작
 
     Args:
-        stream_queue (Queue): StreamFrameInstance 객체가 들어오는 메인 큐
-        show_latency (bool): 지연 시간 표시 여부
-        debug (bool): 디버그 메시지 출력 여부
+        :param stream_queue: StreamFrameInstance 객체가 들어오는 메인 큐
+        :param server_queue:
+        :param debug: 디버그 메시지 출력 여부
+        :param show_latency: 지연 시간 표시 여부
+        :param headless: GUI창 미사용 여부
 
     Returns:
         Thread: 실행된 데모 스레드 객체
+
     """
-    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, server_queue,show_latency, debug))
+    headless = headless or is_headless_cv2()
+
+    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, server_queue, headless, show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread
+
+
+def is_headless_cv2():
+    # 리눅스나 맥에서 DISPLAY 없으면 무조건 헤드리스
+    if not os.environ.get("DISPLAY"):
+        return True
+
+    # OpenCV 빌드 정보 확인
+    try:
+        info = cv2.getBuildInformation()
+        gui_backends = ["GUI:", "GTK", "Qt", "Win32", "Carbon", "Cocoa"]
+        for line in info.splitlines():
+            if any(backend in line for backend in gui_backends):
+                if "NO" not in line:
+                    return False
+        return True
+    except Exception:
+        return True  # 정보 얻기 실패 시 헤드리스로 간주

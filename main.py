@@ -91,7 +91,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, show_latency=show_latency, debug=debug_mode)
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=True, show_latency=show_latency, debug=debug_mode)
 
 
 
