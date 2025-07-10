@@ -70,8 +70,9 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
                                                     receive_frame=1, ignore_frame=1,
-                                                    startup_max_frame_count=200 // logical_cores,
-                                                    media_format=is_file, debug=debug_mode)
+                                                    startup_max_frame_count=int(200/logical_cores),
+                                                    resize=(854, 480),
+                                                    media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
 
         # 공유메모리 설정

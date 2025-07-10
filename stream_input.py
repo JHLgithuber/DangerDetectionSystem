@@ -27,9 +27,9 @@ class RtspStream:
     #TODO: Resize 추가
 
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
-                 ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp"):
+                 ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp", resize=None, startup_pass=False):
         self.startup_max_frame_count = startup_max_frame_count
-        self.startup_pass=False
+        self.startup_pass=startup_pass
         self.running = True
         self.manager_smm = None
         self.stream_start_index = None
@@ -38,6 +38,7 @@ class RtspStream:
         self.format = media_format
         self.stream_name = stream_name
         self.metadata_queue = metadata_queue
+        self.resize = resize
         self.debug = debug
         self.bypass_frame = bypass_frame
         self.receive_frame = receive_frame
@@ -94,7 +95,7 @@ class RtspStream:
         """
         index = 0
         for index in range(self.startup_max_frame_count):
-            if self.running is False:
+            if not self.running:
                break
             start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
@@ -140,7 +141,7 @@ class RtspStream:
             if not self.startup_pass:
                 time.sleep(3)
             else:
-                time.sleep(0.3)
+                time.sleep(0.1)
         return index
 
     def startup_pass(self):
@@ -227,7 +228,7 @@ class RtspStream:
         index = start_index
 
         for frame in frame_iterator:
-            if self.running is False:
+            if not self.running:
                 break
             raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
 
@@ -246,6 +247,12 @@ class RtspStream:
             else:
                 bypass_flag = False
                 bypassed_count = 0
+
+            if (
+                    self.resize is not None and
+                    (self.resize[0] < self.shape[1] or self.resize[1] < self.shape[0])  # 가로나 세로 중 하나라도 더 작으면
+            ):
+                raw_stream_view = cv2.resize(raw_stream_view, self.resize)
 
             memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(    # 공유메모리에 프레임 저장
                 frame=raw_stream_view,
@@ -331,7 +338,7 @@ class RtspStream:
         try:
             start_index = self._stream_slow_starting_up()
             while True:
-                if self.running is False:
+                if not self.running:
                     break
                 print(f"[INFO] Video File: {rtsp_url} will OPEN")
                 container = av.open(rtsp_url)
@@ -370,7 +377,7 @@ class RtspStream:
         try:
             start_index = self._stream_slow_starting_up()
             while True:
-                if self.running is False:
+                if not self.running:
                     break
                 print(f"[INFO] Video File: {rtsp_url} will OPEN")
                 container = av.open(rtsp_url, format=self.format)
