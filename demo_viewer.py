@@ -26,7 +26,6 @@ def visual_from_fall_flag(stream_frame_instance,):
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
-    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
 
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
@@ -71,7 +70,6 @@ def visual_from_pose_estimation(stream_frame_instance):
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=True)
-    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
 
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
@@ -113,7 +111,6 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
         np.ndarray: 시각화된 프레임
     """
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
-    frame = frame.reshape((stream_frame_instance.height, stream_frame_instance.width, 3))
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
     row_img = frame.copy()

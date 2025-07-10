@@ -74,17 +74,17 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
         shm.close()
 
 
-def load_frame_from_shared_memory(stream_frame_instance, debug=False):
+def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False):
     """
     공유 메모리에서 프레임 로드
 
     Args:
-        stream_frame_instance (StreamFrameInstance): 프레임 메타정보 포함 객체
-        debug (bool): 디버그 메시지 출력 여부
+        :param stream_frame_instance: 프레임 메타정보 포함 객체
+        :param copy: 복사 여부(프레임 복사시 성능 하락, 편집 필요시 복사)
+        :param debug: : 디버그 메시지 출력 여부
 
     Returns:
         np.ndarray: 로드된 프레임, 실패 시 검정 프레임 반환
-
     """
 
     if debug: 
@@ -96,11 +96,15 @@ def load_frame_from_shared_memory(stream_frame_instance, debug=False):
         shm = shared_memory.SharedMemory(name=memory_name)
         shape = (stream_frame_instance.height, stream_frame_instance.width, 3)
         # 즉시 복사하여 새로운 버퍼 생성
-        frame = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()
-        shm.close()
-        if debug: 
-            print(f"load {stream_frame_instance.stream_name} frame from shared memory")
-        return frame
+        if copy:
+            if debug: print(f"copy {stream_frame_instance.stream_name} frame from shared memory")
+            frame = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()
+            shm.close()
+            return frame
+        else:
+            if debug: print(f"load {stream_frame_instance.stream_name} frame from shared memory")
+            frame = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf)
+            return frame, shm
 
     except Exception as e:
         print(f"공유 메모리 로드 중 오류: {e}")

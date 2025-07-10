@@ -33,12 +33,12 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     """
     h, w = stream_frame_instance.height, stream_frame_instance.width
     frame = None
+    #shm = None
     if need_frame:
         # 1) 원본 프레임 복원
         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-            stream_frame_instance, debug=debug
+            stream_frame_instance, debug=debug, copy=True
         )
-        frame = frame.reshape((h, w, 3))
 
     crops = []
 
@@ -74,6 +74,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
 
         output = stream_frame_instance.human_detection_numpy
         if output.numel() == 0:
+            #if shm: shm.close()
             return crops
 
         bboxes = output[:, 0:4] / ratio   # [x1, y1, x2, y2]
@@ -102,7 +103,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
                 'bbox': (x1_p, y1_p, x2_p, y2_p),
                 'track_id': None
             })
-
+    #if shm : shm.close()
     return crops
 
 def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, debug=False):
