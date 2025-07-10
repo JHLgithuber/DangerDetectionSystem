@@ -199,6 +199,7 @@ class RtspStream:
             receive_frame,
             ignore_frame,
             start_index,
+            sleep_time=0.0,
     ):
         """
         공통 프레임 처리 루프 (RTSP, 파일, 카메라 등 공용)
@@ -279,7 +280,7 @@ class RtspStream:
             if metadata_queue.full():   # 큐 다차면 가장 과거 데이터 삭제
                 metadata_queue.get()
             metadata_queue.put(stream_frame_instance)
-            time.sleep(1 / 30)
+            time.sleep(sleep_time)
 
     def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
                                 receive_frame, ignore_frame, ):
@@ -345,7 +346,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index,
+                    ignore_frame, start_index, sleep_time=1/30,
                 )
                 print("endVideo")
                 container.close()
@@ -384,7 +385,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index,
+                    ignore_frame, start_index, sleep_time=1/30
                 )
                 print("endVideo")
                 container.close()

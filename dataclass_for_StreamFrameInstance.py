@@ -170,7 +170,3 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
                     yield oldest
-            
-            # 모든 버퍼가 비었을 때 더 오래 대기
-            if all_empty:
-                time.sleep(0.1)

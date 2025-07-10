@@ -58,8 +58,8 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
     try:
         # 프로세스 코어수 연동
         logical_cores = cpu_count()
-        yolox_cores = min(max(int(logical_cores // 2.5), 2), 6)
-        mp_cores = max(int((logical_cores - yolox_cores) // 1.2), 2)
+        yolox_cores = min(max(int(logical_cores // 3.5), 2), 6)
+        mp_cores = max(int(logical_cores - yolox_cores - 1), 2)
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
         stream_many = len(url_list)
@@ -69,7 +69,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
-                                                    receive_frame=1, ignore_frame=1,
+                                                    receive_frame=1, ignore_frame=0,
                                                     startup_max_frame_count=int(200/logical_cores),
                                                     resize=(854, 480),
                                                     media_format=is_file, debug=debug_mode, startup_pass=False)
