@@ -185,7 +185,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
             exit_code = 1
 
         finally:
-            print("main END...")
+            print(f"main END...{exit_code}")
     return exit_code
 
 

@@ -113,7 +113,7 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
         
     finally:
         # 항상 공유 메모리 연결을 닫음
-        if shm is not None:
+        if copy and shm is not None:
             shm.close()
 
 

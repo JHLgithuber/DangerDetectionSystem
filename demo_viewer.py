@@ -113,11 +113,10 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
-    row_img = frame.copy()
     output = stream_frame_instance.human_detection_numpy
 
     if output is None:
-        return row_img
+        return frame
     bboxes = output[:, 0:4]
 
     # preprocessing: resize
@@ -126,7 +125,7 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
     cls = output[:, 6]
     scores = output[:, 4] * output[:, 5]
 
-    vis_res = vis(row_img, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # frame에 결과 그려줌
+    vis_res = vis(frame, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # frame에 결과 그려줌
     return vis_res
 
 
