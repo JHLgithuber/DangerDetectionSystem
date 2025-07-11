@@ -1,7 +1,6 @@
 import time
 import uuid
 from threading import Thread
-
 import av
 import cv2
 import numpy as np
@@ -136,6 +135,7 @@ class RtspStream:
                 height=self.shape[0],
                 width=self.shape[1],
                 bypass_flag=False,
+                sequence_perf_counter={"stream_input": time.perf_counter()},
             )
 
             index = (index + 1) % len(self.manager_smm)
@@ -265,6 +265,7 @@ class RtspStream:
             if memory_name is None:
                 continue
 
+
             stream_frame_instance = StreamFrameInstance(  # 메타데이터 인스턴스 생성
                 stream_name=stream_name,
                 frame_index=index,
@@ -272,6 +273,7 @@ class RtspStream:
                 height=raw_stream_view.shape[0],
                 width=raw_stream_view.shape[1],
                 bypass_flag=bypass_flag,
+                sequence_perf_counter= {"stream_input": time.perf_counter()},
             )
 
             index = (index + 1) % len(shm_names)

@@ -1,3 +1,4 @@
+import time
 from multiprocessing import Process, current_process
 
 import cv2
@@ -128,12 +129,14 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
     try:
         while True:
             stream_frame_instance = input_frame_instance_queue.get()
+            stream_frame_instance.sequence_perf_counter["pose_detector_start"]=time.perf_counter()
             if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
             if stream_frame_instance is None:
                 break
             pose_landmarker_results = pose_landmarker.detect(stream_frame_instance, debug=debug)
             if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
             stream_frame_instance.pose_detection_list = pose_landmarker_results
+            stream_frame_instance.sequence_perf_counter["pose_detector_end"]=time.perf_counter()
             output_frame_instance_queue.put(stream_frame_instance)
     except KeyboardInterrupt:
         print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")

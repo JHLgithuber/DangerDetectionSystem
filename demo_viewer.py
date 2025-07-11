@@ -258,6 +258,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
         while True:
             instances_per_frame_instance = next(sorter_gen)
+            instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_sorter"] = time.perf_counter()
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
@@ -283,9 +284,16 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                         instances_per_frame_instance,
                         debug=debug
                     )
+                instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_visual"] = time.perf_counter()
 
                 # 지연 시간 추가
                 if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
+
+                instances_per_frame_instance.sequence_perf_counter["demo_viewer_end"] = time.perf_counter()
+                if instances_per_frame_instance.sequence_perf_counter is not None:
+                    deltas=dataclass_for_StreamFrameInstance.compute_time_deltas(instances_per_frame_instance.sequence_perf_counter)
+                    for step, delta in deltas.items():
+                        print(f"[sequence time Delta INFO] {stream_name}\n{step}:\t{delta}ms")
 
                 if not headless: demo_viewer(stream_name, result_frame, debug=debug)
                 if server_queue is not None:
@@ -325,6 +333,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
         print("[INFO] imshow demo start")
         while True:
             stream = stream_queue.get()
+            stream.sequence_perf_counter["demo_viewer_start"] = time.perf_counter()
             stream_name = stream.stream_name
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")

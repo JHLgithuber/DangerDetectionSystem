@@ -246,6 +246,7 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                 if not stream_queue.empty():
                     # 큐에서 프레임 객체 꺼내기
                     stream_frame_instance = stream_queue.get()
+                    stream_frame_instance.sequence_perf_counter["human_detector_start"]=time.perf_counter()
                     if stream_frame_instance.bypass_flag is False:
                         instance_id = stream_frame_instance.stream_name + '-' + stream_frame_instance.captured_datetime.strftime(
                             "%Y%m%d%H%M%S%f")  # 프레임별 ID생성
@@ -268,6 +269,7 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                             output_frame_instance.human_detection_numpy = None
                         else:
                             output_frame_instance.human_detection_numpy = output_dict["output_numpy"]  # 추론결과 삽입
+                        output_frame_instance.sequence_perf_counter["human_detector_end"] = time.perf_counter()
                         return_queue.put(output_frame_instance)
                     else:
                         logger.info("output_dict id not found")

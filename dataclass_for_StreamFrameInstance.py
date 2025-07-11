@@ -41,7 +41,7 @@ class StreamFrameInstance:
     pose_detection_list: Optional[np.ndarray] = None
     fall_flag_list: Optional[List[bool]] = None
     bypass_flag: bool = False
-    log: str = None
+    sequence_perf_counter: dict = None
 
 
 def save_frame_to_shared_memory(frame, shm_name, debug=False):
@@ -118,7 +118,7 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
             shm.close()
 
 
-def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=30, debug=False, ):
+def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=5, debug=False, ):
     # noinspection SpellCheckingInspection
     """
         시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
@@ -130,7 +130,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
 
         Yields:
             시간순으로 정렬된 StreamFrameInstance
-            :param buffer_size:
+            :param buffer_size: 스트림당 버퍼 사이즈, 커질수록 레이턴시가 증가
             :param sorted_frame_instance_queue:
             :param messy_frame_instance_queue:
             :param debug: 디버그
@@ -142,18 +142,20 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
         # noinspection SpellCheckingInspection
         try:
             instance = messy_frame_instance_queue.get(timeout=0.5)
+            instance.sequence_perf_counter["sorter_start"] = time.perf_counter()
 
             # 스트림별로 분리하여 버퍼링
             stream_buffers[instance.stream_name].append(instance)
 
             # 각 스트림별 버퍼가 일정 크기를 넘으면 가장 오래된 프레임 제공
             for stream_name, instances in list(stream_buffers.items()):
-                if len(instances) > buffer_size:  # 각 스트림에 버퍼 크기의 10% 할당
+                if len(instances) > buffer_size:
                     # 날짜 기준 정렬
                     instances.sort(key=lambda x: x.captured_datetime)
                     oldest = instances.pop(0)  # 가장 오래된 항목 제거
 
                     if debug: print(f"[DEBUG] sorted_frame_instance_queue.put(oldest_image)")
+                    oldest.sequence_perf_counter["sorter_end"] = time.perf_counter()
                     # 제너레이터로 반환
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
@@ -165,13 +167,31 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
             time.sleep(0.001)
 
             # 버퍼에 데이터가 있으면 가장 오래된 프레임 제공
-            all_empty = True
             for stream_name, instances in list(stream_buffers.items()):
                 if instances:
-                    all_empty = False
                     instances.sort(key=lambda x: x.captured_datetime)
                     oldest = instances.pop(0)
 
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
                     yield oldest
+
+
+def compute_time_deltas(timing_log: dict) -> dict:
+    """
+    입력 딕셔너리의 key 순서대로 시간 차(ms)를 계산하여 반환합니다.
+
+    Args:
+        timing_log (dict): 시간 로그 딕셔너리 (key 순서 보장)
+
+    Returns:
+        dict: {"이전_key → 현재_key": 경과시간(ms)} 형식의 딕셔너리
+    """
+    keys = list(timing_log.keys())
+    deltas = {}
+    for i in range(1, len(keys)):
+        prev_key = keys[i - 1]
+        curr_key = keys[i]
+        delta_ms = (timing_log[curr_key] - timing_log[prev_key]) * 1000
+        deltas[f"{prev_key} → {curr_key}"] = round(delta_ms, 3)
+    return deltas
