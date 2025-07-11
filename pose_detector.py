@@ -1,15 +1,18 @@
 from multiprocessing import Process, current_process
+
 import cv2
+import mediapipe as mp
+import numpy as np
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
-import mediapipe as mp
-import fall_detecting_algorithm
-import numpy as np
-import dataclass_for_StreamFrameInstance
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-#TODO: mediapipe가 GPU를 사용하도록 할 수 있을 텐데
+import dataclass_for_StreamFrameInstance
+import fall_detecting_algorithm
+
+
+# TODO: mediapipe가 GPU를 사용하도록 할 수 있을 텐데
 
 def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=True, debug=False):
     """
@@ -33,7 +36,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     """
     h, w = stream_frame_instance.height, stream_frame_instance.width
     frame = None
-    #shm = None
+    # shm = None
     if need_frame:
         # 1) 원본 프레임 복원
         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
@@ -66,7 +69,8 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
             })
 
     # 3) Detection(Numpy) 결과 처리
-    elif hasattr(stream_frame_instance, 'human_detection_numpy') and stream_frame_instance.human_detection_numpy is not None:
+    elif hasattr(stream_frame_instance,
+                 'human_detection_numpy') and stream_frame_instance.human_detection_numpy is not None:
         # detection 된 바운딩박스는 모델 입력 크기(test_size)에 맞춰져 있으므로 원본 크기로 스케일 복원
         test_size = (stream_frame_instance.human_detection_tsize,
                      stream_frame_instance.human_detection_tsize)
@@ -74,10 +78,10 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
 
         output = stream_frame_instance.human_detection_numpy
         if output.numel() == 0:
-            #if shm: shm.close()
+            # if shm: shm.close()
             return crops
 
-        bboxes = output[:, 0:4] / ratio   # [x1, y1, x2, y2]
+        bboxes = output[:, 0:4] / ratio  # [x1, y1, x2, y2]
         classes = output[:, 6]
         scores = output[:, 4] * output[:, 5]  # objectness * class_conf
 
@@ -103,8 +107,9 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
                 'bbox': (x1_p, y1_p, x2_p, y2_p),
                 'track_id': None
             })
-    #if shm : shm.close()
+    # if shm : shm.close()
     return crops
+
 
 def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug=False):
     """
@@ -118,7 +123,8 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
     Returns:
         None
     """
-    pose_landmarker = PoseDetector(current_process_name=current_process().name, model_asset_path= model_asset_path,debug=debug)
+    pose_landmarker = PoseDetector(current_process_name=current_process().name, model_asset_path=model_asset_path,
+                                   debug=debug)
     try:
         while True:
             stream_frame_instance = input_frame_instance_queue.get()
@@ -127,14 +133,16 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
                 break
             pose_landmarker_results = pose_landmarker.detect(stream_frame_instance, debug=debug)
             if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
-            stream_frame_instance.pose_detection_list=pose_landmarker_results
+            stream_frame_instance.pose_detection_list = pose_landmarker_results
             output_frame_instance_queue.put(stream_frame_instance)
     except KeyboardInterrupt:
         print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")
     except Exception as e:
         print(f"[ERROR] pose_landmarker process: {e}")
 
-def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8, debug=False):
+
+def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8,
+                        debug=False):
     """
     포즈 추정 워커 프로세스 다중 실행
 
@@ -148,14 +156,16 @@ def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue,
         list of Process: 실행된 프로세스 객체 리스트
         :param model_asset_path:
     """
-    processes=list()
+    processes = list()
     for i in range(process_num):
-        process = Process(name= f"_pose_landmarker_process-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug))
+        process = Process(name=f"_pose_landmarker_process-{i}", target=_pose_landmarker_process,
+                          args=(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug))
         process.daemon = True
         process.start()
         if debug: print(f"[DEBUG] pose_landmarker process {i} start")
         processes.append(process)
     return processes
+
 
 class PoseDetector:
     """
@@ -168,14 +178,16 @@ class PoseDetector:
         show_now (bool): 실시간 결과 시각화 여부
         debug (bool): 디버그 출력 여부
     """
-    def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, show_now=False, debug=False):
+
+    def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, show_now=False,
+                 debug=False):
         base_options = python.BaseOptions(model_asset_path=model_asset_path)
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             num_poses=num_poses,
             output_segmentation_masks=False)
         self.detector = vision.PoseLandmarker.create_from_options(options)
-        self.show_now=show_now
+        self.show_now = show_now
         self.debug = debug
         self.current_process_name = current_process_name
         if self.debug: print(f"pose_landmarker: {self.detector}")
@@ -195,9 +207,9 @@ class PoseDetector:
         pose_landmarker_results = list()
 
         # 포즈 감지용 화면 초기화
-        pose_demo_name="DRAWN IMAGE of ERROR"
+        pose_demo_name = "DRAWN IMAGE of ERROR"
         if self.show_now:
-            pose_demo_name=f"DRAWN IMAGE of {self.current_process_name}"
+            pose_demo_name = f"DRAWN IMAGE of {self.current_process_name}"
             cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
 
         for crop_object_img in crop_object_images:
@@ -214,13 +226,16 @@ class PoseDetector:
             if debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
-            if self.show_now:   # 포즈 감지용 화면 출력
-                annotated_image=draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'], debug=debug)
+            if self.show_now:  # 포즈 감지용 화면 출력
+                annotated_image = draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'],
+                                                                        debug=debug)
                 cv2.imshow(pose_demo_name, annotated_image)
                 cv2.waitKey(1)
 
-            if detection_result: pose_landmarker_results.append(detection_result)
-            else: pose_landmarker_results.append([])
+            if detection_result:
+                pose_landmarker_results.append(detection_result)
+            else:
+                pose_landmarker_results.append([])
 
         if not pose_landmarker_results:
             return None
@@ -249,7 +264,7 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
 
     # 이미지 미포함 시 검정 화면에 처리
     if rgb_image is None:
-        annotated_image=np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
+        annotated_image = np.zeros((img_size[0], img_size[1], 3), dtype=np.uint8)
     else:
         annotated_image = np.copy(rgb_image)
 
@@ -260,7 +275,7 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
         return annotated_image
 
     # 감지 결과 추가
-    detection_fall_result=fall_detecting_algorithm.detect_fall(detection_result, debug=debug)
+    detection_fall_result = fall_detecting_algorithm.detect_fall(detection_result, debug=debug)
     if detection_fall_result is None:
         cv2.putText(annotated_image, "Conf Fail", (5, 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 0)
@@ -292,6 +307,4 @@ def draw_world_landmarks_with_coordinates(detection_result, rgb_image=None, img_
             solutions.drawing_styles.get_default_pose_landmarks_style()
         )
 
-
     return annotated_image
-

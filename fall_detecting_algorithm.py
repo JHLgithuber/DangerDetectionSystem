@@ -1,6 +1,7 @@
 import math
 
-def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50, leg_thresh=50, debug=False,):
+
+def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50, leg_thresh=50, debug=False, ):
     """
     2D 포즈 각도 기반 낙상 여부 판단
 
@@ -45,7 +46,8 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     right_calf_vec = (right_ankle.x - right_knee.x, right_ankle.y - right_knee.y)
 
     if debug:
-        print(f"[FALL_ANGLE] torso_vec: {torso_vec}, thigh_vec: {thigh_vec}, calf_vec: {calf_vec}, left_calf_vec: {left_calf_vec}, right_calf_vec: {right_calf_vec}")
+        print(
+            f"[FALL_ANGLE] torso_vec: {torso_vec}, thigh_vec: {thigh_vec}, calf_vec: {calf_vec}, left_calf_vec: {left_calf_vec}, right_calf_vec: {right_calf_vec}")
 
     # 수직 방향(0,1)과 각 segment 벡터의 이루는 각도 계산
     def vertical_angle(vec):
@@ -68,16 +70,15 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     fallen_left_calf = angle_left_calf > leg_thresh
     fallen_right_calf = angle_right_calf > leg_thresh
 
-
-
     # 최종 판단 (세 부분 중 일정 부분 이상 넘어 지면 쓰러짐)
     fallen_reason = f"Torso: {fallen_torso}({angle_torso}) | Thigh: {fallen_thigh}({angle_thigh}) | Calf: {fallen_calf}({angle_calf}) | Left calf: {fallen_left_calf}({angle_left_calf}) | Right calf: {fallen_right_calf}({angle_right_calf})"
     is_fallen = False
     if fallen_torso:
-        fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_calf, fallen_right_calf,])
+        fallen_parts = sum([fallen_torso, fallen_thigh, fallen_calf, fallen_left_calf, fallen_right_calf, ])
         is_fallen = fallen_parts >= 4
 
     return is_fallen, fallen_reason
+
 
 def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
     """
@@ -124,7 +125,6 @@ def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
     return is_fallen, reason
 
 
-
 # noinspection PyUnusedLocal
 def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
     """
@@ -154,13 +154,12 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
     height_body = abs((right_shoulder.y - right_ankle.y + left_shoulder.y - left_ankle.y) / 2.0)
     ratio_body = height_body / width_body if width_body > 1e-6 else float('inf')
 
-
     if ratio_body < min_recline_ratio:
-        is_fallen=True
-        fallen_reason=f"ratio_body({ratio_body}) < min_recline_ratio({min_recline_ratio})"
+        is_fallen = True
+        fallen_reason = f"ratio_body({ratio_body}) < min_recline_ratio({min_recline_ratio})"
     else:
-        is_fallen=False
-        fallen_reason=f"ratio_body({ratio_body}) in range({min_recline_ratio})"
+        is_fallen = False
+        fallen_reason = f"ratio_body({ratio_body}) in range({min_recline_ratio})"
 
     return is_fallen, fallen_reason
 
@@ -225,8 +224,8 @@ def detect_fall_normalized(lm2d_list):
     is_fall = (spine_angle_deg > 50) or (spine_ratio < 1.2)
     is_fall_final = is_fall or is_side_fall
 
+    return is_fall_final, None
 
-    return is_fall_final,None
 
 def check_visibility_presence(lm2d_list):
     """
@@ -238,19 +237,20 @@ def check_visibility_presence(lm2d_list):
     Returns:
         bool: 모든 관절이 기준 이상일 경우 True, 하나라도 부족하면 False
     """
-    check_point_list=list()
-    check_point_list.append(lm2d_list[11])  #left_shoulder
-    check_point_list.append(lm2d_list[12])  #right_shoulder
-    check_point_list.append(lm2d_list[23])  #left_hip
-    check_point_list.append(lm2d_list[24])  #right_hip
-    check_point_list.append(lm2d_list[25])  #left_knee
-    check_point_list.append(lm2d_list[26])  #right_knee
-    check_point_list.append(lm2d_list[27])  #left_ankle
-    check_point_list.append(lm2d_list[28])  #right_ankle
+    check_point_list = list()
+    check_point_list.append(lm2d_list[11])  # left_shoulder
+    check_point_list.append(lm2d_list[12])  # right_shoulder
+    check_point_list.append(lm2d_list[23])  # left_hip
+    check_point_list.append(lm2d_list[24])  # right_hip
+    check_point_list.append(lm2d_list[25])  # left_knee
+    check_point_list.append(lm2d_list[26])  # right_knee
+    check_point_list.append(lm2d_list[27])  # left_ankle
+    check_point_list.append(lm2d_list[28])  # right_ankle
     for lm in check_point_list:
         if not (hasattr(lm, 'visibility') and lm.visibility > 0.00 and hasattr(lm, 'presence') and lm.presence > 0.6):
             return False
     return True
+
 
 def detect_fall(detection_result, debug=False):
     """
@@ -281,7 +281,6 @@ def detect_fall(detection_result, debug=False):
         else:
             if not check_visibility_presence(lm2d_list):
                 return None
-
 
         result_by_normalization = detect_fall_normalized(lm2d_list)
         result_by_angle = detect_fall_angle(lm2d_list)

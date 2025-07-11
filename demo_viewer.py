@@ -1,16 +1,18 @@
+import os
+import platform
 import time
 from datetime import datetime
 from multiprocessing import Process, Queue
 from threading import Thread
-import os
+
 import cv2
 import numpy as np
-import platform
+
 import dataclass_for_StreamFrameInstance
 from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 from yolox.data.datasets import COCO_CLASSES
 from yolox.utils import vis
-import stream_server as stream
+
 
 # noinspection PyUnusedLocal
 def visual_from_fall_flag(stream_frame_instance, debug=True):
@@ -41,9 +43,11 @@ def visual_from_fall_flag(stream_frame_instance, debug=True):
             pose_detection, img_size=crop_object_img["img_size"], )
 
         if fall_flag:
-            cv2.putText(pose_landmark_overlay, "Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            cv2.putText(pose_landmark_overlay, "Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255),
+                        2)
         else:
-            cv2.putText(pose_landmark_overlay, "NOT Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(pose_landmark_overlay, "NOT Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        (0, 255, 0), 2)
 
         # bbox 좌표
         x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
@@ -136,9 +140,6 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35, debug=True
     return vis_res
 
 
-
-
-
 def demo_viewer(stream_name, frame, debug=False):
     """
     프레임을 화면에 표시
@@ -163,6 +164,7 @@ def demo_viewer(stream_name, frame, debug=False):
 
     except Exception as e:
         print(f"[ERROR] {stream_name} 뷰어 예외 발생: {e}")
+
 
 def web_viewer(stream_name, frame, server_queue, debug=False):
     """
@@ -190,6 +192,7 @@ def web_viewer(stream_name, frame, server_queue, debug=False):
     except Exception as e:
         print(f"[web_viewer ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
+
 def _add_latency_to_frame(frame, captured_datetime):
     """
     프레임에 지연 시간 텍스트 표시
@@ -206,7 +209,7 @@ def _add_latency_to_frame(frame, captured_datetime):
     latency_us = int(delta.total_seconds() * 1_000_000)
     latency_text = f"Latency is {latency_us:08d} us, about {latency_s}seconds"
 
-    cv2.putText(    # 윤곽선
+    cv2.putText(  # 윤곽선
         frame,
         latency_text,
         (20, 20),  # Top-left corner of the frame
@@ -218,7 +221,7 @@ def _add_latency_to_frame(frame, captured_datetime):
     )
 
     # Add text to the top left of the frame
-    cv2.putText(    # 지연시간
+    cv2.putText(  # 지연시간
         frame,
         latency_text,
         (20, 20),  # Top-left corner of the frame
@@ -259,23 +262,23 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
             if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.fall_flag_list is not None: # 낙상 감지가 완료된 프레임
-                        result_frame = visual_from_fall_flag(
+                if instances_per_frame_instance.fall_flag_list is not None:  # 낙상 감지가 완료된 프레임
+                    result_frame = visual_from_fall_flag(
                         stream_frame_instance=instances_per_frame_instance,
                         debug=debug,
                     )
-                elif instances_per_frame_instance.pose_detection_list is not None:  #포즈 감지가 완료된 프레임
+                elif instances_per_frame_instance.pose_detection_list is not None:  # 포즈 감지가 완료된 프레임
                     result_frame = visual_from_pose_estimation(
                         stream_frame_instance=instances_per_frame_instance,
                         debug=debug,
                     )
-                elif instances_per_frame_instance.human_detection_numpy is not None:    #객체 감지가 완료된 프레임
+                elif instances_per_frame_instance.human_detection_numpy is not None:  # 객체 감지가 완료된 프레임
                     result_frame = visual_from_detection_numpy(
                         stream_frame_instance=instances_per_frame_instance,
                         cls_conf=0.35,
-                        debug = debug,
+                        debug=debug,
                     )
-                else:   # 별도의 처리가 없었던 프레임
+                else:  # 별도의 처리가 없었던 프레임
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
                         instances_per_frame_instance,
                         debug=debug
@@ -283,8 +286,6 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
                 # 지연 시간 추가
                 if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
-
-
 
                 if not headless: demo_viewer(stream_name, result_frame, debug=debug)
                 if server_queue is not None:
@@ -329,7 +330,8 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue()
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
-                                  args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency, debug))
+                                  args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
+                                        debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -348,6 +350,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 viewer.terminate()
                 viewer.join()
                 print(f"[INFO] {viewer.name} is terminated.")
+
         __terminate_process()
 
 
@@ -368,10 +371,12 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     """
     headless = headless or is_headless_cv2()
 
-    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo, args=(stream_queue, server_queue, headless, show_latency, debug))
+    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo,
+                                args=(stream_queue, server_queue, headless, show_latency, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread
+
 
 def is_headless_cv2():
     """
@@ -390,7 +395,8 @@ def is_headless_cv2():
     # 2. OpenCV 빌드 정보에서 GUI 백엔드 지원 여부 확인
     try:
         info = cv2.getBuildInformation()
-        gui_lines = [line for line in info.splitlines() if "GUI:" in line or any(g in line for g in ["GTK", "Qt", "Win32", "Cocoa", "Carbon"])]
+        gui_lines = [line for line in info.splitlines() if
+                     "GUI:" in line or any(g in line for g in ["GTK", "Qt", "Win32", "Cocoa", "Carbon"])]
         for line in gui_lines:
             if "YES" in line or "ON" in line:
                 return False  # GUI 지원됨

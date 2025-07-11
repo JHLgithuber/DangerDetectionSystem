@@ -2,13 +2,15 @@ import argparse
 import time
 from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from multiprocessing.managers import SharedMemoryManager
+
 import falling_iou_checker
 import human_detector
 import pose_detector
+import stream_server as stream
 from demo_viewer import start_imshow_demo
 from stream_input import RtspStream
 from yolox.exp import get_exp
-import stream_server as stream
+
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -70,8 +72,8 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
                                                     receive_frame=1, ignore_frame=0,
-                                                    startup_max_frame_count=int(200/logical_cores),
-                                                    #resize=(854, 480),
+                                                    startup_max_frame_count=int(200 / logical_cores),
+                                                    # resize=(854, 480),
                                                     resize=None,
                                                     media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
@@ -86,16 +88,14 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
             shm_objs_dict[name] = shm_objs
             shm_names_dict[name] = shm_name
 
-
-        #스트리밍 서버 설정
+        # 스트리밍 서버 설정
         server_queue = Queue(maxsize=3 * stream_many)
         stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=False, show_latency=show_latency, debug=debug_mode)
-
-
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=False,
+                                        show_latency=show_latency, debug=debug_mode)
 
         # YOLOX ObjectDetection
         args = get_args()
@@ -105,7 +105,6 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
                                             process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
         yolox_process.start()
 
-
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=20 * stream_many)
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
@@ -114,14 +113,12 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
                                                          model_asset_path="pose_landmarker.task",
                                                          debug=debug_mode, )
 
-
         # Falling multi frame IoU Checker
         fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
                                                            output_q=output_metadata_queue,
                                                            buffer_size=50,
                                                            fall_ratio_thresh=0.7,
                                                            debug=debug_mode)
-
 
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
@@ -153,20 +150,20 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
     except Exception as e:
         print(f"main error: {e}")
 
-    finally:    # 리소스 정리
+    finally:  # 리소스 정리
         exit_code = 0
         try:
-            if yolox_process:   # yolox 프로세스 종료
+            if yolox_process:  # yolox 프로세스 종료
                 yolox_process.terminate()
                 yolox_process.join(timeout=5.0)
 
-            if stream_instance_dict:    # 입력스트림 종료
+            if stream_instance_dict:  # 입력스트림 종료
                 for name, instance in stream_instance_dict.items():
                     thread = instance.kill_stream()
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if mp_processes:    # 포즈 추정 프로세스 종료
+            if mp_processes:  # 포즈 추정 프로세스 종료
                 for mp_proc in mp_processes:
                     try:
                         mp_proc.terminate()
@@ -175,8 +172,7 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
                     except Exception as e:
                         print(f"프로세스 종료 중 오류: {e}")
 
-
-            if frame_smm_mgr:   # 공유메모리 정리
+            if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
 
@@ -204,8 +200,8 @@ if __name__ == "__main__":
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
-         ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-         ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+        ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
+        ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
         # ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),

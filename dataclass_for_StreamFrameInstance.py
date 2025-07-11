@@ -30,7 +30,7 @@ class StreamFrameInstance:
     """
     stream_name: str
     frame_index: int
-    memory_name:str
+    memory_name: str
     height: int
     width: int
     captured_datetime: datetime = field(default_factory=datetime.now)
@@ -41,6 +41,7 @@ class StreamFrameInstance:
     pose_detection_list: Optional[np.ndarray] = None
     fall_flag_list: Optional[List[bool]] = None
     bypass_flag: bool = False
+    log: str = None
 
 
 def save_frame_to_shared_memory(frame, shm_name, debug=False):
@@ -62,7 +63,7 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
     shm = None
     try:
         shm = SharedMemory(name=shm_name)
-        buffer=np.ndarray(frame.shape, dtype=np.uint8, buffer=shm.buf)
+        buffer = np.ndarray(frame.shape, dtype=np.uint8, buffer=shm.buf)
         np.copyto(buffer, frame)
         shm.close()
         if debug: print(f"save {shm.name} to shared memory")
@@ -87,7 +88,7 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
         np.ndarray: 로드된 프레임, 실패 시 검정 프레임 반환
     """
 
-    if debug: 
+    if debug:
         print(f"[DEBUG] load_frame_from_shared_memory start")
     memory_name = stream_frame_instance.memory_name
     shm = None
@@ -110,14 +111,14 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
         print(f"공유 메모리 로드 중 오류: {e}")
         black_frame = np.zeros((stream_frame_instance.height, stream_frame_instance.width, 3), dtype=np.uint8)
         return black_frame
-        
+
     finally:
         # 항상 공유 메모리 연결을 닫음
         if copy and shm is not None:
             shm.close()
 
 
-def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=30, debug=False,):
+def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=30, debug=False, ):
     # noinspection SpellCheckingInspection
     """
         시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
@@ -141,10 +142,10 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
         # noinspection SpellCheckingInspection
         try:
             instance = messy_frame_instance_queue.get(timeout=0.5)
-            
+
             # 스트림별로 분리하여 버퍼링
             stream_buffers[instance.stream_name].append(instance)
-            
+
             # 각 스트림별 버퍼가 일정 크기를 넘으면 가장 오래된 프레임 제공
             for stream_name, instances in list(stream_buffers.items()):
                 if len(instances) > buffer_size:  # 각 스트림에 버퍼 크기의 10% 할당
@@ -162,7 +163,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
             if debug: print(f"[DEBUG] sorter error or empty: {e}")
             # 큐가 비어있거나 다른 예외 발생 시 잠시 대기
             time.sleep(0.001)
-            
+
             # 버퍼에 데이터가 있으면 가장 오래된 프레임 제공
             all_empty = True
             for stream_name, instances in list(stream_buffers.items()):
@@ -170,7 +171,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
                     all_empty = False
                     instances.sort(key=lambda x: x.captured_datetime)
                     oldest = instances.pop(0)
-                    
+
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
                     yield oldest

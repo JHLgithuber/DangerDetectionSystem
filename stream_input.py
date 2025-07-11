@@ -1,9 +1,11 @@
 import time
 import uuid
 from threading import Thread
+
 import av
 import cv2
 import numpy as np
+
 import dataclass_for_StreamFrameInstance
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
@@ -24,12 +26,13 @@ class RtspStream:
         media_format (str): 소스 형식 ('rtsp', 'file', 커스텀 포맷 등)
     """
 
-    #TODO: Resize 추가
+    # TODO: Resize 추가
 
     def __init__(self, rtsp_url, metadata_queue, stream_name=str(uuid.uuid4()), bypass_frame=0, receive_frame=1,
-                 ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp", resize=None, startup_pass=False):
+                 ignore_frame=0, startup_max_frame_count=60, debug=False, media_format="rtsp", resize=None,
+                 startup_pass=False):
         self.startup_max_frame_count = startup_max_frame_count
-        self.startup_pass=startup_pass
+        self.startup_pass = startup_pass
         self.running = True
         self.manager_smm = None
         self.stream_start_index = None
@@ -61,7 +64,7 @@ class RtspStream:
                 container = av.open(self.rtsp_url, options={'rtsp_transport': 'tcp'})
             elif self.format == "file":
                 container = av.open(self.rtsp_url)
-            else:   # 카메라 등
+            else:  # 카메라 등
                 container = av.open(self.rtsp_url, format=self.format)
             frame = next(container.decode(video=0))
             img = frame.to_ndarray(format='bgr24')
@@ -96,7 +99,7 @@ class RtspStream:
         index = 0
         for index in range(self.startup_max_frame_count):
             if not self.running:
-               break
+                break
             start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
             y0 = 100  # 첫 줄의 y좌표
@@ -145,11 +148,10 @@ class RtspStream:
         return index
 
     def startup_pass(self):
-        self.startup_pass=True
+        self.startup_pass = True
         print(f"{self.stream_name}startup PASS")
 
-
-    def run_stream(self, manager_smm,):
+    def run_stream(self, manager_smm, ):
         """
         스트림 유형에 따라 프레임 수신 스레드 실행
 
@@ -177,12 +179,12 @@ class RtspStream:
                                               self.debug,
                                               self.bypass_frame, self.receive_frame, self.ignore_frame,
                                               ))
-        else :
+        else:
             self.stream_thread = Thread(target=self._update_frame_from_custom_format, name=self.stream_name,
                                         args=(self.rtsp_url, self.stream_name, self.manager_smm, self.metadata_queue,
                                               self.debug,
                                               self.bypass_frame, self.receive_frame, self.ignore_frame,
-                                        )
+                                              )
                                         )
         self.stream_thread.daemon = True
         self.stream_thread.start()
@@ -233,7 +235,7 @@ class RtspStream:
                 break
             raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
 
-            if ignore_count > 0:    # 프레임 무시 처리
+            if ignore_count > 0:  # 프레임 무시 처리
                 ignore_count -= 1
                 if ignore_count == 0:
                     received_count = receive_frame
@@ -242,7 +244,7 @@ class RtspStream:
 
             if debug: print(f"[{stream_name}] 수신: {raw_stream_view.shape}, 평균 밝기: {raw_stream_view.mean():.2f}")
 
-            if bypassed_count < bypass_frame:   # 프레임 통과 처리
+            if bypassed_count < bypass_frame:  # 프레임 통과 처리
                 bypassed_count += 1
                 bypass_flag = True
             else:
@@ -255,7 +257,7 @@ class RtspStream:
             ):
                 raw_stream_view = cv2.resize(raw_stream_view, self.resize)
 
-            memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(    # 공유메모리에 프레임 저장
+            memory_name = dataclass_for_StreamFrameInstance.save_frame_to_shared_memory(  # 공유메모리에 프레임 저장
                 frame=raw_stream_view,
                 shm_name=shm_names[index],
                 debug=debug
@@ -263,7 +265,7 @@ class RtspStream:
             if memory_name is None:
                 continue
 
-            stream_frame_instance = StreamFrameInstance(    # 메타데이터 인스턴스 생성
+            stream_frame_instance = StreamFrameInstance(  # 메타데이터 인스턴스 생성
                 stream_name=stream_name,
                 frame_index=index,
                 memory_name=memory_name,
@@ -274,10 +276,10 @@ class RtspStream:
 
             index = (index + 1) % len(shm_names)
             received_count -= 1
-            if received_count <= 0: # 프레임 수신 처리
+            if received_count <= 0:  # 프레임 수신 처리
                 ignore_count = ignore_frame
 
-            if metadata_queue.full():   # 큐 다차면 가장 과거 데이터 삭제
+            if metadata_queue.full():  # 큐 다차면 가장 과거 데이터 삭제
                 metadata_queue.get()
             metadata_queue.put(stream_frame_instance)
             time.sleep(sleep_time)
@@ -316,7 +318,7 @@ class RtspStream:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
 
     def _update_frame_from_file(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
-                                receive_frame, ignore_frame,):
+                                receive_frame, ignore_frame, ):
         """
         비디오 파일에서 프레임을 반복적으로 읽어 처리
 
@@ -346,7 +348,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time=1/30,
+                    ignore_frame, start_index, sleep_time=1 / 30,
                 )
                 print("endVideo")
                 container.close()
@@ -385,14 +387,13 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time=1/30
+                    ignore_frame, start_index, sleep_time=1 / 30
                 )
                 print("endVideo")
                 container.close()
 
         except Exception as e:
             print(f"[ERROR] {stream_name} 스레드 예외 발생: {e}")
-
 
     def kill_stream(self):
         self.running = False
