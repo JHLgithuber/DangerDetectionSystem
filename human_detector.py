@@ -242,7 +242,7 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                         instance_id = stream_frame_instance.stream_name +'-'+ stream_frame_instance.captured_datetime.strftime(
                             "%Y%m%d%H%M%S%f")   # 프레임별 ID생성
                         waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
-                        frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
+                        frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=debug_mode)
                         input_queue.put({"img": frame, "id": instance_id})
                         if debug_mode: print(f"input_queue put {instance_id}")
                     elif stream_frame_instance.bypass_flag is True:

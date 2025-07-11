@@ -13,7 +13,7 @@ from yolox.utils import vis
 import stream_server as stream
 
 # noinspection PyUnusedLocal
-def visual_from_fall_flag(stream_frame_instance,):
+def visual_from_fall_flag(stream_frame_instance, debug=True):
     """
     낙상 여부 플래그에 따라 포즈 오버레이 시각화
 
@@ -22,10 +22,12 @@ def visual_from_fall_flag(stream_frame_instance,):
 
     Returns:
         np.ndarray: 낙상 시각화가 적용된 프레임
+        :param stream_frame_instance:
+        :param debug:
     """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, debug=True)
+        stream_frame_instance, debug=debug)
 
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
@@ -57,7 +59,7 @@ def visual_from_fall_flag(stream_frame_instance,):
 
 
 # noinspection PyUnusedLocal
-def visual_from_pose_estimation(stream_frame_instance):
+def visual_from_pose_estimation(stream_frame_instance, debug=True):
     """
     포즈 인식 결과에 대한 원본 프레임에 시각화
 
@@ -66,10 +68,12 @@ def visual_from_pose_estimation(stream_frame_instance):
 
     Returns:
         np.ndarray: 스켈레톤 오버레이가 적용된 프레임
+        :param stream_frame_instance:
+        :param debug:
     """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, debug=True)
+        stream_frame_instance, debug=debug)
 
     # 2. 객체별 crop 정보 구하기
     crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
@@ -99,7 +103,7 @@ def visual_from_pose_estimation(stream_frame_instance):
     return frame
 
 
-def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
+def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35, debug=True):
     """
     객체 탐지 결과를 프레임에 시각화
 
@@ -109,8 +113,11 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35):
 
     Returns:
         np.ndarray: 시각화된 프레임
+        :param stream_frame_instance:
+        :param cls_conf:
+        :param debug:
     """
-    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=True)
+    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=debug)
     test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
     ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
     output = stream_frame_instance.human_detection_numpy
@@ -253,17 +260,20 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
             if instances_per_frame_instance is not None:
                 if instances_per_frame_instance.fall_flag_list is not None: # 낙상 감지가 완료된 프레임
-                    result_frame = visual_from_fall_flag(
-                    stream_frame_instance=instances_per_frame_instance,
-                )
+                        result_frame = visual_from_fall_flag(
+                        stream_frame_instance=instances_per_frame_instance,
+                        debug=debug,
+                    )
                 elif instances_per_frame_instance.pose_detection_list is not None:  #포즈 감지가 완료된 프레임
                     result_frame = visual_from_pose_estimation(
                         stream_frame_instance=instances_per_frame_instance,
+                        debug=debug,
                     )
                 elif instances_per_frame_instance.human_detection_numpy is not None:    #객체 감지가 완료된 프레임
                     result_frame = visual_from_detection_numpy(
                         stream_frame_instance=instances_per_frame_instance,
-                        cls_conf=0.35
+                        cls_conf=0.35,
+                        debug = debug,
                     )
                 else:   # 별도의 처리가 없었던 프레임
                     result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(

@@ -32,7 +32,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
+def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
 
@@ -71,7 +71,8 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
                                                     receive_frame=1, ignore_frame=0,
                                                     startup_max_frame_count=int(200/logical_cores),
-                                                    resize=(854, 480),
+                                                    #resize=(854, 480),
+                                                    resize=None,
                                                     media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
 
@@ -88,7 +89,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
 
         #스트리밍 서버 설정
         server_queue = Queue(maxsize=3 * stream_many)
-        stream.run_stream_server(server_queue, host='0.0.0.0', port=5000)
+        stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
@@ -110,6 +111,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
         mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
                                                          input_frame_instance_queue=after_object_detection_queue,
                                                          output_frame_instance_queue=after_pose_estimation_queue,
+                                                         model_asset_path="pose_landmarker.task",
                                                          debug=debug_mode, )
 
 
@@ -126,7 +128,7 @@ def main(url_list, debug_mode=True, show_latency=True, max_frames=1000):
             instance.run_stream(shm_names_dict[name], )
 
         while True:
-            time.sleep(2)
+            time.sleep(1)
             # Bottle Neck Check
             if input_metadata_queue.full(): print("input_metadata_queue is FULL")
             if output_metadata_queue.full(): print("output_metadata_queue is FULL")
@@ -194,21 +196,21 @@ if __name__ == "__main__":
     freeze_support()
     test_url_list = [
         # ("LocalHost", "rtsp://localhost:8554/stream"),
-        #  ("TestFile_1", "./data_for_test/streetTestVideo.mp4", "file"),
-        #  ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", "file"),
-        #  ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", "file"),
-        #  ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", "file"),
+        # ("TestFile_1", "./data_for_test/streetTestVideo.mp4", "file"),
+        # ("TestFile_2", "./data_for_test/streetTestVideo2.mp4", "file"),
+        # ("TestFile_3", "./data_for_test/streetTestVideo3.mp4", "file"),
+        # ("TestFile_4", "./data_for_test/streetTestVideo4.mp4", "file"),
         # ("Image_1", "./data_for_test/imageByCG.png", "file"),
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
-        # ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-        # ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+         ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
+         ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
         # ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
-         ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
-         ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
+        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
+        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
         # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),

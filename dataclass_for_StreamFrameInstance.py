@@ -161,7 +161,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
         except Exception as e:
             if debug: print(f"[DEBUG] sorter error or empty: {e}")
             # 큐가 비어있거나 다른 예외 발생 시 잠시 대기
-            time.sleep(0.01)
+            time.sleep(0.001)
             
             # 버퍼에 데이터가 있으면 가장 오래된 프레임 제공
             all_empty = True

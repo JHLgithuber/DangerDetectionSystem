@@ -106,7 +106,7 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     #if shm : shm.close()
     return crops
 
-def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, debug=False):
+def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug=False):
     """
     pose_landmarker를 사용하여 이미지에서 인물(사람)의 랜드마크를 추출하는 워커 프로세스
 
@@ -118,7 +118,7 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
     Returns:
         None
     """
-    pose_landmarker = PoseDetector(current_process_name=current_process().name, debug=debug)
+    pose_landmarker = PoseDetector(current_process_name=current_process().name, model_asset_path= model_asset_path,debug=debug)
     try:
         while True:
             stream_frame_instance = input_frame_instance_queue.get()
@@ -134,7 +134,7 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
     except Exception as e:
         print(f"[ERROR] pose_landmarker process: {e}")
 
-def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, process_num=8, debug=False):
+def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8, debug=False):
     """
     포즈 추정 워커 프로세스 다중 실행
 
@@ -146,10 +146,11 @@ def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue,
 
     Returns:
         list of Process: 실행된 프로세스 객체 리스트
+        :param model_asset_path:
     """
     processes=list()
     for i in range(process_num):
-        process = Process(name= f"_pose_landmarker_process-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, debug))
+        process = Process(name= f"_pose_landmarker_process-{i}", target=_pose_landmarker_process, args=(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug))
         process.daemon = True
         process.start()
         if debug: print(f"[DEBUG] pose_landmarker process {i} start")
