@@ -117,7 +117,7 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
             shm.close()
 
 
-def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=5, debug=False, ):
+def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_size=10, debug=False, ):
     # noinspection SpellCheckingInspection
     """
         시간순으로 정렬된 프레임 인스턴스를 생성하는 제너레이터
@@ -162,8 +162,6 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
 
         except Exception as e:
             if debug: print(f"[DEBUG] sorter error or empty: {e}")
-            # 큐가 비어있거나 다른 예외 발생 시 잠시 대기
-            time.sleep(0.001)
 
             # 버퍼에 데이터가 있으면 가장 오래된 프레임 제공
             for stream_name, instances in list(stream_buffers.items()):

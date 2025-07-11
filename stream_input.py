@@ -350,7 +350,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time=1 / 30,
+                    ignore_frame, start_index, sleep_time=0.02,
                 )
                 print("endVideo")
                 container.close()
@@ -389,7 +389,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time=1 / 30
+                    ignore_frame, start_index, sleep_time= 0.02,
                 )
                 print("endVideo")
                 container.close()

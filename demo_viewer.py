@@ -190,7 +190,7 @@ def web_viewer(stream_name, frame, server_queue, debug=False):
         print(f"[web_viewer ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 
-def _add_latency_to_frame(frame, captured_time):
+def _add_latency_to_frame(frame, captured_time, debug=False):
     """
     프레임에 지연 시간 텍스트 표시
 
@@ -204,6 +204,7 @@ def _add_latency_to_frame(frame, captured_time):
     delta_ns = time.time_ns() - captured_time
     latency_s =  delta_ns // 1_000_000_000
     latency_text = f"Latency is {delta_ns:010d} ns, about {latency_s}seconds"
+    if debug: print(latency_text)
 
     cv2.putText(  # 윤곽선
         frame,
@@ -228,8 +229,52 @@ def _add_latency_to_frame(frame, captured_time):
         cv2.LINE_AA
     )
 
+frame_id_time_list=list()
+def _add_fps_to_frame(frame, frame_id, debug=False,):
+    """
+    프레임에 FPS 표시
 
-def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, debug=False):
+    Args:
+        frame (np.ndarray): 텍스트를 그릴 대상 프레임
+
+    Returns:
+        None
+    """
+    global frame_id_time_list
+    now = time.time()
+    frame_id_time_list.append((frame_id, now))
+    while True:
+        if frame_id_time_list[0][1]<now-1:
+            frame_id_time_list.pop(0)
+        else:
+            break
+    fps_text = f"FPS: {len(frame_id_time_list)}"
+    if debug: print(fps_text)
+
+    cv2.putText(  # 윤곽선
+        frame,
+        fps_text,
+        (20, 50),  # Top-left corner of the frame
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,  # Font scale for better visibility
+        (255, 255, 255),  # White color
+        2,  # Thickness
+        cv2.LINE_AA
+    )
+
+    # Add text to the top left of the frame
+    cv2.putText(  # FPS
+        frame,
+        fps_text,
+        (20, 50),  # Top-left corner of the frame
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,  # Font scale for better visibility
+        (0, 0, 0),  # Black color
+        1,  # Thickness
+        cv2.LINE_AA
+    )
+
+def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, show_fps=False, debug=False):
     """
     스트림 프레임을 시각화하는 데모 프로세스
     큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
@@ -237,6 +282,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
     Args:
         stream_queue_for_process (Queue): StreamFrameInstance 객체가 담긴 큐
         show_latency (bool): 지연 시간 표시 여부
+        show_fps (bool): FPS 표시여부
         debug (bool): 디버그 메시지 출력 여부
 
     Returns:
@@ -283,7 +329,8 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_visual"] = time.perf_counter()
 
                 # 지연 시간 추가
-                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_time)
+                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_time, debug=debug)
+                if show_fps: _add_fps_to_frame(result_frame, instances_per_frame_instance.stream_name, debug=debug)
 
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_end"] = time.perf_counter()
                 if instances_per_frame_instance.sequence_perf_counter is not None:
@@ -310,7 +357,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
         print(f"[INFO] DEMO VIEWER of {stream_name} ended by KeyboardInterrupt")
 
 
-def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, debug=False):
+def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, show_fps=False, debug=False):
     """
     다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
     새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
@@ -336,7 +383,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 stream_viewer_queue_dict[stream_name] = Queue()
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
-                                        debug))
+                                        show_fps, debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -359,7 +406,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
         __terminate_process()
 
 
-def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, debug=False, ):
+def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, show_fps=False, debug=False, ):
     """
     imshow 데모를 백그라운드 스레드로 시작
 
@@ -377,7 +424,7 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     headless = headless or is_headless_cv2()
 
     imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo,
-                                args=(stream_queue, server_queue, headless, show_latency, debug))
+                                args=(stream_queue, server_queue, headless, show_latency, show_fps, debug))
     imshow_demo_thread.daemon = True
     imshow_demo_thread.start()
     return imshow_demo_thread

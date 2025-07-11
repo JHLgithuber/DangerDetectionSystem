@@ -34,7 +34,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
+def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
 
@@ -42,6 +42,7 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
         url_list (list of tuple): (스트림 이름, URL, is_file 여부) 리스트
         debug_mode (bool): 디버그 출력 여부
         show_latency (bool): 프레임에 지연 시간 표시 여부
+        show_fps (boot): 프레임에 fps 표시 여부
         max_frames (int): 스트림별 공유 메모리에 유지할 프레임 수
 
     Returns:
@@ -61,7 +62,7 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
         # 프로세스 코어수 연동
         logical_cores = cpu_count()
         yolox_cores = min(max(int(logical_cores // 3.5), 2), 6)
-        mp_cores = max(int(logical_cores - yolox_cores - 1), 2)
+        mp_cores = max(int(logical_cores - yolox_cores - 4), 2)
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
         stream_many = len(url_list)
@@ -95,7 +96,7 @@ def main(url_list, debug_mode=False, show_latency=True, max_frames=1000):
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
         demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=False,
-                                        show_latency=show_latency, debug=debug_mode)
+                                        show_latency=show_latency, show_fps=show_fps, debug=debug_mode)
 
         # YOLOX ObjectDetection
         args = get_args()
