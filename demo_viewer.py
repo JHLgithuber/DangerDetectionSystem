@@ -1,13 +1,10 @@
 import os
 import platform
 import time
-from datetime import datetime
 from multiprocessing import Process, Queue
 from threading import Thread
-
 import cv2
 import numpy as np
-
 import dataclass_for_StreamFrameInstance
 from pose_detector import crop_objects, draw_world_landmarks_with_coordinates
 from yolox.data.datasets import COCO_CLASSES
@@ -193,21 +190,20 @@ def web_viewer(stream_name, frame, server_queue, debug=False):
         print(f"[web_viewer ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 
-def _add_latency_to_frame(frame, captured_datetime):
+def _add_latency_to_frame(frame, captured_time):
     """
     프레임에 지연 시간 텍스트 표시
 
     Args:
         frame (np.ndarray): 텍스트를 그릴 대상 프레임
-        captured_datetime (datetime): 프레임 캡처 시각
+        captured_time (int): 프레임 캡처 시각(time.time_ns())
 
     Returns:
         None
     """
-    delta = datetime.now() - captured_datetime
-    latency_s = int(delta.total_seconds())
-    latency_us = int(delta.total_seconds() * 1_000_000)
-    latency_text = f"Latency is {latency_us:08d} us, about {latency_s}seconds"
+    delta_ns = time.time_ns() - captured_time
+    latency_s =  delta_ns // 1_000_000_000
+    latency_text = f"Latency is {delta_ns:010d} ns, about {latency_s}seconds"
 
     cv2.putText(  # 윤곽선
         frame,
@@ -287,7 +283,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_visual"] = time.perf_counter()
 
                 # 지연 시간 추가
-                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_datetime)
+                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_time)
 
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_end"] = time.perf_counter()
                 if instances_per_frame_instance.sequence_perf_counter is not None:

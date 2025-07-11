@@ -1,7 +1,6 @@
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
 from multiprocessing import shared_memory
 from multiprocessing.shared_memory import SharedMemory
 from typing import Dict, List, Optional, Any
@@ -20,7 +19,7 @@ class StreamFrameInstance:
         memory_name (str): 공유 메모리에서 프레임을 참조하기 위한 메모리 이름.
         height (int): 프레임의 세로 해상도.
         width (int): 프레임의 가로 해상도.
-        captured_datetime (datetime): 프레임이 수집된 시각. 기본값은 생성 시점의 현재 시간.
+        captured_time (int): 프레임이 수집된 시각. 기본값은 생성 시점의 현재 시간. time.time_ns()
         human_detection_numpy (Optional[np.ndarray]): YOLOX 등에서 추출한 사람 탐지 결과(numpy 배열).
         human_detection_tsize (int): 탐지 시 사용된 입력 이미지의 크기 (YOLOX의 --tsize).
         human_tracking_serial (Optional[List[Dict[str, Any]]]): 트래킹 알고리즘 결과로 얻은 사람 식별 정보.
@@ -33,7 +32,7 @@ class StreamFrameInstance:
     memory_name: str
     height: int
     width: int
-    captured_datetime: datetime = field(default_factory=datetime.now)
+    captured_time: int = field(default_factory=time.time_ns, )
     human_detection_numpy: Optional[np.ndarray] = None
     # noinspection SpellCheckingInspection
     human_detection_tsize: int = 640
@@ -151,7 +150,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
             for stream_name, instances in list(stream_buffers.items()):
                 if len(instances) > buffer_size:
                     # 날짜 기준 정렬
-                    instances.sort(key=lambda x: x.captured_datetime)
+                    instances.sort(key=lambda x: x.captured_time)
                     oldest = instances.pop(0)  # 가장 오래된 항목 제거
 
                     if debug: print(f"[DEBUG] sorted_frame_instance_queue.put(oldest_image)")
@@ -169,7 +168,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
             # 버퍼에 데이터가 있으면 가장 오래된 프레임 제공
             for stream_name, instances in list(stream_buffers.items()):
                 if instances:
-                    instances.sort(key=lambda x: x.captured_datetime)
+                    instances.sort(key=lambda x: x.captured_time)
                     oldest = instances.pop(0)
 
                     if sorted_frame_instance_queue:

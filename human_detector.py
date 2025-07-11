@@ -5,11 +5,9 @@ import multiprocessing
 import queue
 import time
 from multiprocessing import Queue, Process
-
 import numpy as np
 import torch
 from loguru import logger
-
 import dataclass_for_StreamFrameInstance
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
@@ -248,8 +246,7 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                     stream_frame_instance = stream_queue.get()
                     stream_frame_instance.sequence_perf_counter["human_detector_start"]=time.perf_counter()
                     if stream_frame_instance.bypass_flag is False:
-                        instance_id = stream_frame_instance.stream_name + '-' + stream_frame_instance.captured_datetime.strftime(
-                            "%Y%m%d%H%M%S%f")  # 프레임별 ID생성
+                        instance_id = stream_frame_instance.stream_name + '-' + str(stream_frame_instance.captured_time) # 프레임별 ID생성
                         waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
                         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance,
                                                                                                 debug=debug_mode)
