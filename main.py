@@ -76,8 +76,8 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
                                                     receive_frame=1, ignore_frame=0,
                                                     startup_max_frame_count=int(200 / logical_cores),
-                                                    # resize=(854, 480),
-                                                    resize=None,
+                                                    resize=(854, 480),
+                                                    #resize=None,
                                                     media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
 

@@ -102,6 +102,13 @@ class RtspStream:
             sequence_perf_counter = {"stream_input_start": time.perf_counter()}
             start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
+
+            if (
+                    self.resize is not None and
+                    (self.resize[0] < self.shape[1] or self.resize[1] < self.shape[0])  # 가로나 세로 중 하나라도 더 작으면
+            ):
+                empty_frame = cv2.resize(empty_frame, self.resize)
+
             y0 = 100  # 첫 줄의 y좌표
             dy = 80  # 줄 간 간격 (원하는 만큼 조절)
             lines = [
@@ -230,9 +237,19 @@ class RtspStream:
         bypassed_count = 0
         received_count = receive_frame
         ignore_count = 0
+        frame_time_gap = 0
+        frame_last_input_time = 0
         index = start_index
 
         for frame in frame_iterator:
+            if input_fps is not None:
+                frame_time_gap= 1/input_fps
+            else:
+                frame_time_gap = 0.0
+
+            while frame_time_gap > time.perf_counter() - frame_last_input_time: # 정밀한 FPS구현
+                pass
+
             sequence_perf_counter = {"stream_input_start": time.perf_counter()}
             if not self.running:
                 break
@@ -287,8 +304,8 @@ class RtspStream:
             if metadata_queue.full():  # 큐 다차면 가장 과거 데이터 삭제
                 metadata_queue.get()
             metadata_queue.put(stream_frame_instance)
-            if input_fps is not None:
-                time.sleep(1/input_fps)
+
+            frame_last_input_time = time.perf_counter()
 
 
     def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
