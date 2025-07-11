@@ -99,6 +99,7 @@ class RtspStream:
         for index in range(self.startup_max_frame_count):
             if not self.running:
                 break
+            sequence_perf_counter = {"stream_input_start": time.perf_counter()}
             start_percent = index / self.startup_max_frame_count * 100
             empty_frame = np.zeros((self.shape[0], self.shape[1], 3), dtype=np.uint8)
             y0 = 100  # 첫 줄의 y좌표
@@ -128,6 +129,7 @@ class RtspStream:
                 debug=self.debug
             )
 
+            sequence_perf_counter["stream_input_end"] = time.perf_counter()
             stream_frame_instance = StreamFrameInstance(
                 stream_name=self.stream_name,
                 frame_index=index,
@@ -135,7 +137,7 @@ class RtspStream:
                 height=self.shape[0],
                 width=self.shape[1],
                 bypass_flag=False,
-                sequence_perf_counter={"stream_input": time.perf_counter()},
+                sequence_perf_counter=sequence_perf_counter,
             )
 
             index = (index + 1) % len(self.manager_smm)
@@ -201,7 +203,7 @@ class RtspStream:
             receive_frame,
             ignore_frame,
             start_index,
-            sleep_time=0.0,
+            input_fps=None,
     ):
         """
         공통 프레임 처리 루프 (RTSP, 파일, 카메라 등 공용)
@@ -231,6 +233,7 @@ class RtspStream:
         index = start_index
 
         for frame in frame_iterator:
+            sequence_perf_counter = {"stream_input_start": time.perf_counter()}
             if not self.running:
                 break
             raw_stream_view = np.array(frame.to_ndarray(format='bgr24'))
@@ -265,7 +268,7 @@ class RtspStream:
             if memory_name is None:
                 continue
 
-
+            sequence_perf_counter["stream_input_end"] = time.perf_counter()
             stream_frame_instance = StreamFrameInstance(  # 메타데이터 인스턴스 생성
                 stream_name=stream_name,
                 frame_index=index,
@@ -273,7 +276,7 @@ class RtspStream:
                 height=raw_stream_view.shape[0],
                 width=raw_stream_view.shape[1],
                 bypass_flag=bypass_flag,
-                sequence_perf_counter= {"stream_input": time.perf_counter()},
+                sequence_perf_counter= sequence_perf_counter,
             )
 
             index = (index + 1) % len(shm_names)
@@ -284,7 +287,9 @@ class RtspStream:
             if metadata_queue.full():  # 큐 다차면 가장 과거 데이터 삭제
                 metadata_queue.get()
             metadata_queue.put(stream_frame_instance)
-            time.sleep(sleep_time)
+            if input_fps is not None:
+                time.sleep(1/input_fps)
+
 
     def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,
                                 receive_frame, ignore_frame, ):
@@ -350,7 +355,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time=0.02,
+                    ignore_frame, start_index, input_fps= 30,
                 )
                 print("endVideo")
                 container.close()
@@ -389,7 +394,7 @@ class RtspStream:
                 frame_iterator = container.decode(video=0)
                 self._process_frames_common(
                     frame_iterator, stream_name, shm_names, metadata_queue, debug, bypass_frame, receive_frame,
-                    ignore_frame, start_index, sleep_time= 0.02,
+                    ignore_frame, start_index, input_fps= 30,
                 )
                 print("endVideo")
                 container.close()

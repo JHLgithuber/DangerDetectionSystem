@@ -21,13 +21,17 @@ def run_stream_server(queue, host='0.0.0.0', port=5000):
             except Exception as e:
                 print("Queue error:", e)
 
-    threading.Thread(target=queue_consumer, daemon=True).start()
+    consumer= threading.Thread(target=queue_consumer, daemon=True).start()
 
     def flask_thread():
-        print(f"[INFO] Flask MJPEG server running: http://{host}:{port}")
-        app.run(host=host, port=port, threaded=True, debug=False)
+        try:
+            print(f"[INFO] Flask MJPEG server running: http://{host}:{port}")
+            app.run(host=host, port=port, threaded=True, debug=False)
+        except KeyboardInterrupt:
+            print("[INFO] Shutting down server...")
 
-    threading.Thread(target=flask_thread, daemon=True).start()
+    server= threading.Thread(target=flask_thread, daemon=True).start()
+    return server, consumer,
 
 
 @app.route('/')
@@ -46,7 +50,7 @@ def mjpeg(stream_name):
                 ret, jpg = cv2.imencode('.jpg', frame)
                 if ret:
                     yield boundary + b'\r\nContent-Type: image/jpeg\r\n\r\n' + jpg.tobytes() + b'\r\n'
-            time.sleep(0.03)
+            time.sleep(0.02)
 
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -55,7 +59,7 @@ def mjpeg(stream_name):
 if __name__ == "__main__":
     from multiprocessing import Queue
 
-    q = Queue()
+    q = Queue(maxsize=10)
     run_stream_server(q)  # 여기서 서버 시작
 
     # 아래는 테스트: 임의의 프레임 계속 넣기

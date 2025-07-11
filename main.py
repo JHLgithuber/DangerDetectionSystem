@@ -57,12 +57,14 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
     stream_instance_dict = dict()
     yolox_process = None
     mp_processes = None
+    server_thread = None
+    consumer_thread = None
 
     try:
         # 프로세스 코어수 연동
         logical_cores = cpu_count()
         yolox_cores = min(max(int(logical_cores // 3.5), 2), 6)
-        mp_cores = max(int(logical_cores - yolox_cores - 4), 2)
+        mp_cores = max(int(logical_cores - yolox_cores - 5), 2)
         print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
         stream_many = len(url_list)
@@ -91,7 +93,7 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
 
         # 스트리밍 서버 설정
         server_queue = Queue(maxsize=3 * stream_many)
-        stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
+        server_thread, consumer_thread= stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
@@ -128,10 +130,11 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
         while True:
             time.sleep(1)
             # Bottle Neck Check
-            if input_metadata_queue.full(): print("input_metadata_queue is FULL")
-            if output_metadata_queue.full(): print("output_metadata_queue is FULL")
-            if after_object_detection_queue.full(): print("after_object_detection_queue is FULL")
-            if after_pose_estimation_queue.full(): print("after_pose_estimation_queue is FULL")
+            if input_metadata_queue.full(): print("[Warning] input_metadata_queue is FULL")
+            if output_metadata_queue.full(): print("[Warning] output_metadata_queue is FULL")
+            if after_object_detection_queue.full(): print("[Warning] after_object_detection_queue is FULL")
+            if after_pose_estimation_queue.full(): print("[Warning] after_pose_estimation_queue is FULL")
+            if server_queue.full(): print("[Warning] server_queue is FULL")
 
             # Watch Dog
             if not demo_thread.is_alive():

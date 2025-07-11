@@ -203,7 +203,7 @@ def _add_latency_to_frame(frame, captured_time, debug=False):
     """
     delta_ns = time.time_ns() - captured_time
     latency_s =  delta_ns // 1_000_000_000
-    latency_text = f"Latency is {delta_ns:010d} ns, about {latency_s}seconds"
+    latency_text = f"Latency is {delta_ns:010d}ns, about {latency_s}seconds"
     if debug: print(latency_text)
 
     cv2.putText(  # 윤곽선
@@ -300,7 +300,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
         while True:
             instances_per_frame_instance = next(sorter_gen)
-            instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_sorter"] = time.perf_counter()
+            instances_per_frame_instance.sequence_perf_counter["viewer_after_sorter"] = time.perf_counter()
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
@@ -326,7 +326,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                         instances_per_frame_instance,
                         debug=debug
                     )
-                instances_per_frame_instance.sequence_perf_counter["demo_viewer_after_visual"] = time.perf_counter()
+                instances_per_frame_instance.sequence_perf_counter["viewer_after_visual"] = time.perf_counter()
 
                 # 지연 시간 추가
                 if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_time, debug=debug)
@@ -335,8 +335,11 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_end"] = time.perf_counter()
                 if instances_per_frame_instance.sequence_perf_counter is not None:
                     deltas=dataclass_for_StreamFrameInstance.compute_time_deltas(instances_per_frame_instance.sequence_perf_counter)
+                    time_delta_log=f"[sequence time Delta INFO] {stream_name}\n"
                     for step, delta in deltas.items():
-                        print(f"[sequence time Delta INFO] {stream_name}\n{step}:\t{delta}ms")
+                        time_delta_log += f"{step}\t:{delta:9.4f}ms\n"
+                    time_delta_log += f"{stream_name} OUT\n"
+                    print(time_delta_log)
 
                 if not headless: demo_viewer(stream_name, result_frame, debug=debug)
                 if server_queue is not None:
@@ -380,13 +383,17 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
             stream_name = stream.stream_name
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
-                stream_viewer_queue_dict[stream_name] = Queue()
+                stream_viewer_queue_dict[stream_name] = Queue(maxsize=10)
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
                                         show_fps, debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
+
+            if stream_viewer_queue_dict[stream_name].full():
+                print(f"[Warning] {stream_name} _show_imshow_demo queue is FULL.")
+
             stream_viewer_queue_dict[stream_name].put(stream)
 
 
@@ -411,6 +418,7 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     imshow 데모를 백그라운드 스레드로 시작
 
     Args:
+        :param show_fps: FPS 출력 여부
         :param stream_queue: StreamFrameInstance 객체가 들어오는 메인 큐
         :param server_queue:
         :param debug: 디버그 메시지 출력 여부
@@ -423,11 +431,11 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     """
     headless = headless or is_headless_cv2()
 
-    imshow_demo_thread = Thread(name="_show_imshow_demo", target=_show_imshow_demo,
+    imshow_demo_proc = Process(name="_show_imshow_demo", target=_show_imshow_demo,
                                 args=(stream_queue, server_queue, headless, show_latency, show_fps, debug))
-    imshow_demo_thread.daemon = True
-    imshow_demo_thread.start()
-    return imshow_demo_thread
+    imshow_demo_proc.daemon = False
+    imshow_demo_proc.start()
+    return imshow_demo_proc
 
 
 def is_headless_cv2():

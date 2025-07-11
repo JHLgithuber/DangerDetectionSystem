@@ -141,7 +141,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
         # noinspection SpellCheckingInspection
         try:
             instance = messy_frame_instance_queue.get(timeout=0.5)
-            instance.sequence_perf_counter["sorter_start"] = time.perf_counter()
+            instance.sequence_perf_counter["instance_sorter_start"] = time.perf_counter()
 
             # 스트림별로 분리하여 버퍼링
             stream_buffers[instance.stream_name].append(instance)
@@ -154,7 +154,7 @@ def sorter(messy_frame_instance_queue, sorted_frame_instance_queue=None, buffer_
                     oldest = instances.pop(0)  # 가장 오래된 항목 제거
 
                     if debug: print(f"[DEBUG] sorted_frame_instance_queue.put(oldest_image)")
-                    oldest.sequence_perf_counter["sorter_end"] = time.perf_counter()
+                    oldest.sequence_perf_counter["instance_sorter_end"] = time.perf_counter()
                     # 제너레이터로 반환
                     if sorted_frame_instance_queue:
                         sorted_frame_instance_queue.put(oldest)
@@ -190,5 +190,5 @@ def compute_time_deltas(timing_log: dict) -> dict:
         prev_key = keys[i - 1]
         curr_key = keys[i]
         delta_ms = (timing_log[curr_key] - timing_log[prev_key]) * 1000
-        deltas[f"{prev_key} → {curr_key}"] = round(delta_ms, 3)
+        deltas[f"{prev_key}\t→ {curr_key}"] = delta_ms
     return deltas

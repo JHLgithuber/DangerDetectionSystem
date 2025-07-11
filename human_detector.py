@@ -271,6 +271,10 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                     else:
                         logger.info("output_dict id not found")
 
+                if input_queue.full():
+                    print("[Warning] human_detector input_queue is FULL")
+                if output_queue.full():
+                    print("[Warning] human_detector output_queue is FULL")
 
             except queue.Empty:
                 continue

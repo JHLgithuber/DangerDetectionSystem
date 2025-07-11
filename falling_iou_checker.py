@@ -49,7 +49,7 @@ def _fall_worker(in_q: Queue, out_q: Queue, buffer_size, iou_thresh, fall_ratio_
     histories = {}
     while True:
         frame: StreamFrameInstance = in_q.get()
-        frame.sequence_perf_counter["falling_iou_checker_start"]=time.perf_counter()
+        frame.sequence_perf_counter["fallIouChecker_start"]=time.perf_counter()
         name = frame.stream_name
         # 스트림별 히스토리 생성 및 삽입, 오래된 항목 자동 삭제
         history = histories.setdefault(name, deque(maxlen=buffer_size))
@@ -94,7 +94,7 @@ def _fall_worker(in_q: Queue, out_q: Queue, buffer_size, iou_thresh, fall_ratio_
         # 버퍼에 추가 하고 결과 저장
         history.append(current_data)
         frame.fall_flag_list = fall_flags
-        frame.sequence_perf_counter["falling_iou_checker_end"]=time.perf_counter()
+        frame.sequence_perf_counter["fallIouChecker_end"]=time.perf_counter()
         out_q.put(frame)
 
 
