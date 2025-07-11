@@ -190,7 +190,7 @@ def web_viewer(stream_name, frame, server_queue, debug=False):
         print(f"[web_viewer ERROR] {stream_name} 뷰어 예외 발생: {e}")
 
 
-def _add_latency_to_frame(frame, captured_time, debug=False):
+def _add_latency_to_frame(captured_time, frame=None, debug=False):
     """
     프레임에 지연 시간 텍스트 표시
 
@@ -205,6 +205,9 @@ def _add_latency_to_frame(frame, captured_time, debug=False):
     latency_s =  delta_ns // 1_000_000_000
     latency_text = f"Latency is {delta_ns:010d}ns, about {latency_s}seconds"
     if debug: print(latency_text)
+
+    if frame is None:
+        return latency_text
 
     cv2.putText(  # 윤곽선
         frame,
@@ -228,9 +231,10 @@ def _add_latency_to_frame(frame, captured_time, debug=False):
         1,  # Thickness
         cv2.LINE_AA
     )
+    return latency_text
 
 frame_id_time_list=list()
-def _add_fps_to_frame(frame, frame_id, debug=False,):
+def _add_fps_to_frame(frame_id, frame=None, debug=False,):
     """
     프레임에 FPS 표시
 
@@ -248,8 +252,13 @@ def _add_fps_to_frame(frame, frame_id, debug=False,):
             frame_id_time_list.pop(0)
         else:
             break
-    fps_text = f"FPS: {len(frame_id_time_list)}"
+    fps=len(frame_id_time_list)
+
+    fps_text = f"FPS: {fps}"
     if debug: print(fps_text)
+
+    if frame is None:
+        return fps_text
 
     cv2.putText(  # 윤곽선
         frame,
@@ -274,7 +283,9 @@ def _add_fps_to_frame(frame, frame_id, debug=False,):
         cv2.LINE_AA
     )
 
-def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, show_fps=False, debug=False):
+    return fps
+
+def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, show_fps=False, visual=True, debug=False):
     """
     스트림 프레임을 시각화하는 데모 프로세스
     큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
@@ -304,63 +315,72 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 
-            if instances_per_frame_instance is not None:
-                if instances_per_frame_instance.fall_flag_list is not None:  # 낙상 감지가 완료된 프레임
-                    result_frame = visual_from_fall_flag(
-                        stream_frame_instance=instances_per_frame_instance,
-                        debug=debug,
-                    )
-                elif instances_per_frame_instance.pose_detection_list is not None:  # 포즈 감지가 완료된 프레임
-                    result_frame = visual_from_pose_estimation(
-                        stream_frame_instance=instances_per_frame_instance,
-                        debug=debug,
-                    )
-                elif instances_per_frame_instance.human_detection_numpy is not None:  # 객체 감지가 완료된 프레임
-                    result_frame = visual_from_detection_numpy(
-                        stream_frame_instance=instances_per_frame_instance,
-                        cls_conf=0.35,
-                        debug=debug,
-                    )
-                else:  # 별도의 처리가 없었던 프레임
-                    result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-                        instances_per_frame_instance,
-                        debug=debug
-                    )
-                instances_per_frame_instance.sequence_perf_counter["viewer_after_visual"] = time.perf_counter()
+            if visual:
+                if instances_per_frame_instance is not None:
+                    if instances_per_frame_instance.fall_flag_list is not None:  # 낙상 감지가 완료된 프레임
+                        result_frame = visual_from_fall_flag(
+                            stream_frame_instance=instances_per_frame_instance,
+                            debug=debug,
+                        )
+                    elif instances_per_frame_instance.pose_detection_list is not None:  # 포즈 감지가 완료된 프레임
+                        result_frame = visual_from_pose_estimation(
+                            stream_frame_instance=instances_per_frame_instance,
+                            debug=debug,
+                        )
+                    elif instances_per_frame_instance.human_detection_numpy is not None:  # 객체 감지가 완료된 프레임
+                        result_frame = visual_from_detection_numpy(
+                            stream_frame_instance=instances_per_frame_instance,
+                            cls_conf=0.35,
+                            debug=debug,
+                        )
+                    else:  # 별도의 처리가 없었던 프레임
+                        result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
+                            instances_per_frame_instance,
+                            debug=debug
+                        )
+                    instances_per_frame_instance.sequence_perf_counter["viewer_after_visual"] = time.perf_counter()
 
-                # 지연 시간 추가
-                if show_latency: _add_latency_to_frame(result_frame, instances_per_frame_instance.captured_time, debug=debug)
-                if show_fps: _add_fps_to_frame(result_frame, instances_per_frame_instance.stream_name, debug=debug)
+                    # 지연 시간 추가
+                    if show_latency: _add_latency_to_frame(frame= result_frame, captured_time=instances_per_frame_instance.captured_time, debug=debug)
+                    if show_fps: _add_fps_to_frame(frame= result_frame, frame_id= instances_per_frame_instance.stream_name, debug=debug)
 
+                    if not headless: demo_viewer(stream_name, result_frame, debug=debug)
+                    if server_queue is not None:
+                        if debug: print(f"[DEBUG] {stream_name} send to server")
+                        web_viewer(stream_name, result_frame, server_queue, debug=debug)
+
+            else:   #CLI Only 모드
+                cli_text=f"[CLI_only] {stream_name} instances_per_frame\n"
+                if show_fps: cli_text += f"[CLI_only] {stream_name} {_add_fps_to_frame(frame_id= instances_per_frame_instance.stream_name, debug=debug)}\n"
+                if show_latency: cli_text += f"[CLI_only] {stream_name} {_add_latency_to_frame(captured_time=instances_per_frame_instance.captured_time, debug=debug)}\n"
+                if instances_per_frame_instance.fall_flag_list is not None:
+                    for fall_flag in instances_per_frame_instance.fall_flag_list:
+                        cli_text += f"[CLI_only] {stream_name} fall_flag: {fall_flag}\n"
+                else:
+                    cli_text += f"[CLI_only] {stream_name} instances_per_frame is None"
+                print(cli_text+"\n\n")
+
+            if instances_per_frame_instance.sequence_perf_counter is not None:
                 instances_per_frame_instance.sequence_perf_counter["demo_viewer_end"] = time.perf_counter()
-                if instances_per_frame_instance.sequence_perf_counter is not None:
-                    deltas=dataclass_for_StreamFrameInstance.compute_time_deltas(instances_per_frame_instance.sequence_perf_counter)
-                    time_delta_log=f"[sequence time Delta INFO] {stream_name}\n"
-                    for step, delta in deltas.items():
-                        time_delta_log += f"{step}\t:{delta:9.4f}ms\n"
-                    time_delta_log += f"{stream_name} OUT\n"
-                    print(time_delta_log)
-
-                if not headless: demo_viewer(stream_name, result_frame, debug=debug)
-                if server_queue is not None:
-                    if debug: print(f"[DEBUG] {stream_name} send to server")
-                    web_viewer(stream_name, result_frame, server_queue, debug=debug)
-
-            else:
-                print(f"[INFO] {stream_name} instances_per_frame is None")
-                break
+                deltas = dataclass_for_StreamFrameInstance.compute_time_deltas(
+                    instances_per_frame_instance.sequence_perf_counter)
+                time_delta_log = f"[sequence time Delta INFO]\t{stream_name}\n"
+                for step, delta in deltas.items():
+                    time_delta_log += f"[sequence time Delta INFO]\t{step}\t:{delta:9.4f}ms\n"
+                time_delta_log += f"[sequence time Delta INFO]\t{stream_name} OUT\n"
+                print(time_delta_log)
 
             cv2.waitKey(1)
-        cv2.destroyAllWindows()
+            time.sleep(0)
     except Exception as e:
-        cv2.destroyAllWindows()
         print(f"\n[ERROR] DEMO VIEWER of {stream_name} terminated due to: {e}")
     except KeyboardInterrupt:
-        cv2.destroyAllWindows()
         print(f"[INFO] DEMO VIEWER of {stream_name} ended by KeyboardInterrupt")
+    finally:
+        cv2.destroyAllWindows()
 
 
-def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, show_fps=False, debug=False):
+def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, show_fps=False, visual=True, debug=False):
     """
     다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
     새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
@@ -386,7 +406,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 stream_viewer_queue_dict[stream_name] = Queue(maxsize=10)
                 process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
-                                        show_fps, debug))
+                                        show_fps, visual, debug))
                 stream_viewer_process_set.add(process)
                 process.start()
                 time.sleep(0.001)
@@ -413,11 +433,12 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
         __terminate_process()
 
 
-def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, show_fps=False, debug=False, ):
+def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, show_fps=False, visual=True, debug=False, ):
     """
     imshow 데모를 백그라운드 스레드로 시작
 
     Args:
+        :param visual: frame 합성 여부
         :param show_fps: FPS 출력 여부
         :param stream_queue: StreamFrameInstance 객체가 들어오는 메인 큐
         :param server_queue:
@@ -432,7 +453,7 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     headless = headless or is_headless_cv2()
 
     imshow_demo_proc = Process(name="_show_imshow_demo", target=_show_imshow_demo,
-                                args=(stream_queue, server_queue, headless, show_latency, show_fps, debug))
+                                args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, debug))
     imshow_demo_proc.daemon = False
     imshow_demo_proc.start()
     return imshow_demo_proc

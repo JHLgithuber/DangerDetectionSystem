@@ -306,6 +306,7 @@ class RtspStream:
             metadata_queue.put(stream_frame_instance)
 
             frame_last_input_time = time.perf_counter()
+            time.sleep(0)
 
 
     def _update_frame_from_rtsp(self, rtsp_url, stream_name, shm_names, metadata_queue, debug, bypass_frame,

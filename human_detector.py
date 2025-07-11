@@ -201,7 +201,7 @@ class Predictor(object):
             batch_inputs.clear()
             batch_ids.clear()
             last_collect = time.time()
-            # time.sleep(0.0001)
+            time.sleep(0)
 
 
 # noinspection PyUnusedLocal
@@ -275,6 +275,7 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                     print("[Warning] human_detector input_queue is FULL")
                 if output_queue.full():
                     print("[Warning] human_detector output_queue is FULL")
+                time.sleep(0)
 
             except queue.Empty:
                 continue

@@ -138,6 +138,7 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
             stream_frame_instance.pose_detection_list = pose_landmarker_results
             stream_frame_instance.sequence_perf_counter["pose_detector_end"]=time.perf_counter()
             output_frame_instance_queue.put(stream_frame_instance)
+            time.sleep(0)
     except KeyboardInterrupt:
         print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")
     except Exception as e:

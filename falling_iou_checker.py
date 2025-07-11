@@ -96,6 +96,7 @@ def _fall_worker(in_q: Queue, out_q: Queue, buffer_size, iou_thresh, fall_ratio_
         frame.fall_flag_list = fall_flags
         frame.sequence_perf_counter["fallIouChecker_end"]=time.perf_counter()
         out_q.put(frame)
+        time.sleep(0)
 
 
 def run_fall_worker(input_q: Queue, output_q: Queue,

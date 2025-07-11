@@ -34,7 +34,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frames=1000):
+def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_visual=True, max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
 
@@ -44,6 +44,7 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
         show_latency (bool): 프레임에 지연 시간 표시 여부
         show_fps (boot): 프레임에 fps 표시 여부
         max_frames (int): 스트림별 공유 메모리에 유지할 프레임 수
+        print_visual: 결과 frame 합성 여부
 
     Returns:
         int: 종료 코드 (0: 정상 종료, 1: 예외 종료)
@@ -98,7 +99,7 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, max_frame
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
         demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=False,
-                                        show_latency=show_latency, show_fps=show_fps, debug=debug_mode)
+                                        show_latency=show_latency, show_fps=show_fps, visual=print_visual, debug=debug_mode)
 
         # YOLOX ObjectDetection
         args = get_args()
