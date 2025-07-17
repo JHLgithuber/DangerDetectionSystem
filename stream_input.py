@@ -8,7 +8,7 @@ import dataclass_for_StreamFrameInstance
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
 
-class RtspStream:
+class InputStream:
     """
     RTSP, 파일, 웹캠 등 영상을 프레임 단위로 가져오는 스트림 클래스
     PyAV를 제거하고 OpenCV VideoCapture로 구현
@@ -16,7 +16,7 @@ class RtspStream:
 
     def __init__(
         self,
-        rtsp_url,
+        source_path,
         metadata_queue,
         stream_name=None,
         bypass_frame=0,
@@ -30,7 +30,7 @@ class RtspStream:
         startup_pass=False,
     ):
         # 외부 파라미터와 내부 필드 매핑
-        self.rtsp_url = rtsp_url
+        self.source_path = source_path
         self.metadata_queue = metadata_queue
         self.stream_name = stream_name or str(uuid.uuid4())
         self.bypass_frame = bypass_frame
@@ -161,13 +161,13 @@ class RtspStream:
 
     def __cv2_capture(self):
         if self.media_format == "rtsp":
-            cap = cv2.VideoCapture(self.rtsp_url)
+            cap = cv2.VideoCapture(self.source_path)
         elif self.media_format == "file":
-            cap = cv2.VideoCapture(self.rtsp_url)
+            cap = cv2.VideoCapture(self.source_path)
         elif self.media_format == "webcam_id":
-            cap = cv2.VideoCapture(int(self.rtsp_url))
+            cap = cv2.VideoCapture(int(self.source_path))
         else:
-            cap = cv2.VideoCapture(self.rtsp_url)
+            cap = cv2.VideoCapture(self.source_path)
         return cap
 
     def _process_loop(self, frame_iter, start_idx):

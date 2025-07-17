@@ -8,7 +8,7 @@ import human_detector
 import pose_detector
 import stream_server as stream
 from demo_viewer import start_imshow_demo
-from stream_input import RtspStream
+from stream_input import InputStream
 from yolox.exp import get_exp
 
 
@@ -35,7 +35,7 @@ def get_args():
 
 
 def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
-         print_visual=True, web_viewer=True, imshow_viewer=True,
+         print_visual=True, web_viewer=False, imshow_viewer=True,
          max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
@@ -78,12 +78,12 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
         input_metadata_queue = Queue(maxsize=60 * stream_many)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
-            stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
-                                                    receive_frame=1, ignore_frame=0,
-                                                    startup_max_frame_count=int(200 / logical_cores),
-                                                    resize=(854, 480),
-                                                    #resize=None,
-                                                    media_format=is_file, debug=debug_mode, startup_pass=False)
+            stream_instance_dict[name] = InputStream(source_path=url, metadata_queue=input_metadata_queue, stream_name=name,
+                                                     receive_frame=1, ignore_frame=0,
+                                                     startup_max_frame_count=int(200 / logical_cores),
+                                                     resize=(854, 480),
+                                                     #resize=None,
+                                                     media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
 
         # 공유메모리 설정
@@ -144,7 +144,7 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
             if output_metadata_queue.full(): print("[Warning] output_metadata_queue is FULL")
             if after_object_detection_queue.full(): print("[Warning] after_object_detection_queue is FULL")
             if after_pose_estimation_queue.full(): print("[Warning] after_pose_estimation_queue is FULL")
-            if server_queue.full(): print("[Warning] server_queue is FULL")
+            if server_queue is not None and server_queue.full(): print("[Warning] server_queue is FULL")
 
             # Watch Dog
             if not demo_thread.is_alive():
