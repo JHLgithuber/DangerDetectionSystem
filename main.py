@@ -71,7 +71,7 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_vis
         stream_many = len(url_list)
 
         # 입력 스트림 초기화
-        input_metadata_queue = Queue(maxsize=60 * stream_many)
+        input_metadata_queue = Queue(maxsize=120 * stream_many)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
             stream_instance_dict[name] = RtspStream(rtsp_url=url, metadata_queue=input_metadata_queue, stream_name=name,
@@ -208,14 +208,15 @@ if __name__ == "__main__":
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
-        ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-        ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+        #("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
+        #("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
         # ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
+        # ("LiveWebCam", 0, "webcam_id"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
         # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
         # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
-        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
+         ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
         # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", "rtsp"),
