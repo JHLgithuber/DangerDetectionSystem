@@ -34,7 +34,9 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_visual=True, max_frames=1000):
+def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
+         print_visual=True, web_viewer=True, imshow_viewer=True,
+         max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
 
@@ -45,6 +47,8 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_vis
         show_fps (boot): 프레임에 fps 표시 여부
         max_frames (int): 스트림별 공유 메모리에 유지할 프레임 수
         print_visual: 결과 frame 합성 여부
+        web_viewer: Flask 웹 뷰어 작동 여부
+        imshow_viewer: cv2.imshow GUI 뷰어 작동 여부
 
     Returns:
         int: 종료 코드 (0: 정상 종료, 1: 예외 종료)
@@ -93,15 +97,17 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_vis
             shm_names_dict[name] = shm_name
 
         # 스트리밍 서버 설정
-        server_queue = Queue(maxsize=3 * stream_many)
-        server_thread, consumer_thread= stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
+        server_queue = None
+        if web_viewer:
+            server_queue = Queue(maxsize=3 * stream_many)
+            server_thread, consumer_thread= stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
         #headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
         #server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
         #visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=None, headless=False,
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=not imshow_viewer,
                                         show_latency=show_latency, show_fps=show_fps, visual=print_visual, debug=debug_mode)
 
         # YOLOX ObjectDetection
