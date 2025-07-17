@@ -371,7 +371,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 print(time_delta_log)
 
             cv2.waitKey(1)
-            time.sleep(0)
+            time.sleep(0.0001)
     except Exception as e:
         print(f"\n[ERROR] DEMO VIEWER of {stream_name} terminated due to: {e}")
     except KeyboardInterrupt:
