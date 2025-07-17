@@ -11,6 +11,7 @@ from demo_viewer import start_imshow_demo
 from stream_input import InputStream
 from yolox.exp import get_exp
 
+#TODO: sorter제거 후 프레임 안섞이게
 
 def get_args():
     hard_args = argparse.Namespace(
