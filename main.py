@@ -98,10 +98,10 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True, print_vis
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=3 * stream_many)
-        #headless       => True: imshow 화면 전시, False: 로컬 화면 전시 없음
-        #server_queue   => None: 웹 뷰어 사용안함, queue: 웹 뷰어 큐
+        #headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
+        #server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
         #visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=None, headless=True,
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=None, headless=False,
                                         show_latency=show_latency, show_fps=show_fps, visual=print_visual, debug=debug_mode)
 
         # YOLOX ObjectDetection
