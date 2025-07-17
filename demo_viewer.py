@@ -438,10 +438,10 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     imshow 데모를 백그라운드 스레드로 시작
 
     Args:
-        :param visual: frame 합성 여부
+        :param visual: frame 합성 여부, False시 CLI Only(스트리밍도 불가)
         :param show_fps: FPS 출력 여부
         :param stream_queue: StreamFrameInstance 객체가 들어오는 메인 큐
-        :param server_queue:
+        :param server_queue: None시
         :param debug: 디버그 메시지 출력 여부
         :param show_latency: 지연 시간 표시 여부
         :param headless: GUI창 미사용 여부
