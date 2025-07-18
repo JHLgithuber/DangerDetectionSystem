@@ -237,10 +237,13 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                                                      debug_mode))
             inference_worker_process.daemon = True
             inference_worker_process.start()
-            if debug_mode: print(f"inference_worker_process of GPU{gpu_index} {inference_worker_process.pid} start")
             inference_worker_set.add(inference_worker_process)
+            if debug_mode: print(f"inference_worker_process of GPU{gpu_index} {inference_worker_process.pid} start")
 
+
+        if debug_mode: print(f"imageflow_main_proc Start")
         while True:
+            if debug_mode: print(f"imageflow_main_proc LOOP")
             try:
                 # 받은 프레임을 추론 워커에 분배
                 if not stream_queue.empty():
@@ -281,8 +284,9 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                     print("[Warning] human_detector output_queue is FULL")
                 time.sleep(0)
 
-            except queue.Empty:
-                continue
+            except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt_imageflow_main_proc_loop")
+                raise KeyboardInterrupt
 
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt")
