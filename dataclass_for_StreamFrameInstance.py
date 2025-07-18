@@ -126,6 +126,7 @@ class FrameSequentialProcesser:
         #self.__lock = threading.Lock()
         #self.__cond = threading.Condition(self.__lock)
         self.__perf_counter_name = perf_counter_name+"_"
+        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} init")
 
 
     def metadata_push(self,input_metadata:StreamFrameInstance):
@@ -133,7 +134,7 @@ class FrameSequentialProcesser:
         data_id = input_metadata.captured_time + hash(input_metadata.stream_name)
         #with self.__cond:
         self.__metadata_dict[data_id] = {"metadata" : input_metadata, "push_perf_counter" : time.perf_counter(), "processing" : False}
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser metadata_push {data_id}: {input_metadata}")
+        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_push {data_id}: {input_metadata}")
         #    self.__cond.notify_all()
         return data_id
 
@@ -155,7 +156,7 @@ class FrameSequentialProcesser:
             if time.perf_counter() - meta["push_perf_counter"] > max_buf_time:
                 self.__metadata_dict.pop(key)
                 if self.__debug:
-                    print(f"[Warning] FrameSequentialProcesser metadata_pop ignore {key}")
+                    print(f"[Warning] FrameSequentialProcesser {self.__processing_data_name} metadata_pop ignore {key}")
                 #self.__cond.notify_all()
                 continue
 
@@ -164,7 +165,7 @@ class FrameSequentialProcesser:
                 output = self.__metadata_dict.pop(key)["metadata"]
                 output.sequence_perf_counter[self.__perf_counter_name+"end"]=time.perf_counter()
                 if self.__debug:
-                    print(f"[DEBUG] FrameSequentialProcesser metadata_pop {key}: {output}")
+                    print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_pop {key}: {output}")
                 #self.__cond.notify_all()
                 return output
 
@@ -181,9 +182,9 @@ class FrameSequentialProcesser:
             setattr(self.__metadata_dict[data_id]["metadata"], self.__processing_data_name, value)
             self.__metadata_dict[data_id]["processing"] = True
             if self.__debug:
-                print(f"[DEBUG] FrameSequentialProcesser processing_value_input {data_id} ← {value}")
+                print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} processing_value_input {data_id} ← {value}")
         except KeyError:
-            print("[ERROR] FrameSequentialProcesser processing_value_input KEY ERROR")
+            print(f"[ERROR] FrameSequentialProcesser {self.__processing_data_name} processing_value_input KEY ERROR")
         finally:
             pass
             # 값이 채워졌으니 pop 대기 깨우기
@@ -191,7 +192,7 @@ class FrameSequentialProcesser:
 
     def data_id_in_buffer(self,data_id:int) -> bool:
         #with self.__cond:
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser data_id_in_buffer {data_id} in buffer: {data_id in self.__metadata_dict}")
+        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} data_id_in_buffer {data_id} in buffer: {data_id in self.__metadata_dict}")
         #self.__cond.notify_all()
         return data_id in self.__metadata_dict
 
@@ -201,7 +202,7 @@ class FrameSequentialProcesser:
             status= True
         else:
             status= False
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser is_buffer_empty: {status}")
+        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_buffer_empty: {status}")
         #self.__cond.notify_all()
         return status
 
@@ -212,7 +213,7 @@ class FrameSequentialProcesser:
             return False
         else:
             key, meta = next(iter(self.__metadata_dict.items()))
-            if self.__debug: print(f"[DEBUG] FrameSequentialProcesser is_oldest_finsh oldest_finsh: {meta['processing']}")
+            if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_oldest_finsh oldest_finsh: {meta['processing']}")
             #self.__cond.notify_all()
             return meta["processing"]
 

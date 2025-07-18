@@ -1,6 +1,7 @@
 import time
-from multiprocessing import Process, current_process
-
+from multiprocessing import Process, current_process, Queue
+import dataclass_for_StreamFrameInstance
+from dataclass_for_StreamFrameInstance import FrameSequentialProcesser
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -9,7 +10,7 @@ from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-import dataclass_for_StreamFrameInstance
+
 import fall_detecting_algorithm
 
 
@@ -112,13 +113,13 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     return crops
 
 
-def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug=False):
+def _pose_landmarker_process(input_queue, output_queue, model_asset_path, debug=False):
     """
     pose_landmarker를 사용하여 이미지에서 인물(사람)의 랜드마크를 추출하는 워커 프로세스
 
     Args:
-        input_frame_instance_queue (Queue): 입력 프레임 큐 (StreamFrameInstance)
-        output_frame_instance_queue (Queue): 포즈 결과 포함된 프레임 출력 큐
+        input_queue (Queue): 입력 프레임 큐 (StreamFrameInstance)
+        output_queue (Queue): 포즈 결과 포함된 프레임 출력 큐
         debug (bool): 디버그 메시지 출력 여부
 
     Returns:
@@ -128,16 +129,13 @@ def _pose_landmarker_process(input_frame_instance_queue, output_frame_instance_q
                                    debug=debug)
     try:
         while True:
-            stream_frame_instance = input_frame_instance_queue.get()
-            stream_frame_instance.sequence_perf_counter["pose_detector_start"]=time.perf_counter()
-            if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
+            stream_frame_instance, data_id = input_queue.get()
             if stream_frame_instance is None:
                 break
+
             pose_landmarker_results = pose_landmarker.detect(stream_frame_instance, debug=debug)
-            if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
-            stream_frame_instance.pose_detection_list = pose_landmarker_results
-            stream_frame_instance.sequence_perf_counter["pose_detector_end"]=time.perf_counter()
-            output_frame_instance_queue.put(stream_frame_instance)
+
+            output_queue.put(pose_landmarker_results, data_id)
             time.sleep(0)
     except KeyboardInterrupt:
         print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")
@@ -161,13 +159,45 @@ def run_pose_landmarker(input_frame_instance_queue, output_frame_instance_queue,
         :param model_asset_path:
     """
     processes = list()
+    input_queue=Queue()
+    output_queue=Queue()
     for i in range(process_num):
         process = Process(name=f"_pose_landmarker_process-{i}", target=_pose_landmarker_process,
-                          args=(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, debug))
+                          args=(input_queue, output_queue, model_asset_path, debug))
         process.daemon = True
         process.start()
         if debug: print(f"[DEBUG] pose_landmarker process {i} start")
         processes.append(process)
+
+    frame_sequential_processer=FrameSequentialProcesser(processing_data_name="pose_detection_list", perf_counter_name="pose_detector_Seq",
+                             debug=debug)
+    while True:
+        try:
+            if debug: print(f"[DEBUG] run_pose_landmarker LOOP")
+            print(f"[DEBUG] input_frame_instance_queue empty: {input_frame_instance_queue.empty()}")
+            if not input_frame_instance_queue.empty():
+                stream_frame_instance = input_frame_instance_queue.get()
+                stream_frame_instance.sequence_perf_counter["pose_detector_start"]=time.perf_counter()
+                data_id=frame_sequential_processer.metadata_push(stream_frame_instance)
+                if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
+                input_queue.put(stream_frame_instance, data_id)
+
+            if not output_queue.empty():
+                pose_landmarker_results, data_id = output_queue.get()
+                if debug: print(f"[DEBUG] pose_landmarker_results: {pose_landmarker_results}")
+                frame_sequential_processer.processing_value_input(data_id, pose_landmarker_results)
+
+            if frame_sequential_processer.is_oldest_finsh():
+                stream_frame_instance=frame_sequential_processer.metadata_pop()
+                stream_frame_instance.sequence_perf_counter["pose_detector_end"] = time.perf_counter()
+                output_frame_instance_queue.put(stream_frame_instance)
+
+
+
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"[ERROR] run_pose_landmarker: {e}")
     return processes
 
 
