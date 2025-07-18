@@ -62,7 +62,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
     frame_smm_mgr.start()
     stream_instance_dict = dict()
     yolox_process = None
-    mp_processes = None
+    pose_process = None
     server_thread = None
     consumer_thread = None
 
@@ -121,7 +121,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
 
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=20 * stream_many)
-        mp_processes = pose_detector.run_pose_landmarker(process_num=mp_cores,
+        pose_process = pose_detector.run_pose_landmarker_proc(process_num=mp_cores,
                                                          input_frame_instance_queue=after_object_detection_queue,
                                                          output_frame_instance_queue=after_pose_estimation_queue,
                                                          model_asset_path="pose_landmarker.task",
@@ -152,7 +152,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             if not yolox_process.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
-            if not all([mp_porc.is_alive() for mp_porc in mp_processes]):
+            if not pose_process.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] mp porc is dead")
             if not fall_checker.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
@@ -178,14 +178,9 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if mp_processes:  # 포즈 추정 프로세스 종료
-                for mp_proc in mp_processes:
-                    try:
-                        mp_proc.terminate()
-                        mp_proc.join(timeout=5.0)
-                        print(f"mp_proc.is_alive: {mp_proc.is_alive()}")
-                    except Exception as e:
-                        print(f"프로세스 종료 중 오류: {e}")
+            if pose_process:  # 포즈 추정 프로세스 종료
+                pose_process.terminate()
+                pose_process.join(timeout=5.0)
 
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
