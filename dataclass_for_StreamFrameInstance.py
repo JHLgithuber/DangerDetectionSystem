@@ -123,8 +123,8 @@ class FrameSequentialProcesser:
         self.__debug = debug
         self.__metadata_dict=dict()
         self.__processing_data_name=processing_data_name
-        self.__lock = threading.Lock()
-        self.__cond = threading.Condition(self.__lock)
+        #self.__lock = threading.Lock()
+        #self.__cond = threading.Condition(self.__lock)
         self.__perf_counter_name = perf_counter_name+"_"
 
 
@@ -142,8 +142,12 @@ class FrameSequentialProcesser:
         while True:
             # 1) 버퍼가 비어 있으면 대기
             if not self.__metadata_dict:
-                self.__cond.wait(loop_wait_time)
-                continue
+                if blocking:
+                    #self.__cond.wait(loop_wait_time)
+                    time.sleep(loop_wait_time)
+                    continue
+                else:
+                    return None
 
             # 2) FIFO 순서의 가장 오래된 항목 조회
             key, meta = next(iter(self.__metadata_dict.items()))
@@ -152,7 +156,7 @@ class FrameSequentialProcesser:
                 self.__metadata_dict.pop(key)
                 if self.__debug:
                     print(f"[Warning] FrameSequentialProcesser metadata_pop ignore {key}")
-                self.__cond.notify_all()
+                #self.__cond.notify_all()
                 continue
 
             # 3) 값이 채워졌으면 꺼내서 반환
@@ -161,12 +165,13 @@ class FrameSequentialProcesser:
                 output.sequence_perf_counter[self.__perf_counter_name+"end"]=time.perf_counter()
                 if self.__debug:
                     print(f"[DEBUG] FrameSequentialProcesser metadata_pop {key}: {output}")
-                self.__cond.notify_all()
+                #self.__cond.notify_all()
                 return output
 
             if blocking:
+                pass
                 # 4) 값이 아직 없으면 대기
-                self.__cond.wait(loop_wait_time)
+                #self.__cond.wait(loop_wait_time)
             else:
                 return None
 
@@ -180,13 +185,14 @@ class FrameSequentialProcesser:
         except KeyError:
             print("[ERROR] FrameSequentialProcesser processing_value_input KEY ERROR")
         finally:
+            pass
             # 값이 채워졌으니 pop 대기 깨우기
-            self.__cond.notify_all()
+            #self.__cond.notify_all()
 
     def data_id_in_buffer(self,data_id:int) -> bool:
         #with self.__cond:
         if self.__debug: print(f"[DEBUG] FrameSequentialProcesser data_id_in_buffer {data_id} in buffer: {data_id in self.__metadata_dict}")
-        self.__cond.notify_all()
+        #self.__cond.notify_all()
         return data_id in self.__metadata_dict
 
     def is_buffer_empty(self) -> bool:
@@ -202,12 +208,12 @@ class FrameSequentialProcesser:
     def is_oldest_finsh(self) -> bool:
         #with self.__cond:
         if self.is_buffer_empty():
-            self.__cond.notify_all()
+            #self.__cond.notify_all()
             return False
         else:
             key, meta = next(iter(self.__metadata_dict.items()))
             if self.__debug: print(f"[DEBUG] FrameSequentialProcesser is_oldest_finsh oldest_finsh: {meta['processing']}")
-            self.__cond.notify_all()
+            #self.__cond.notify_all()
             return meta["processing"]
 
 

@@ -227,7 +227,6 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
     output_queue = Queue(maxsize=32)
     #waiting_instance_dict = dict()
     gpu_gen = gpu_index_generator()
-    frame_sequential_processer= FrameSequentialProcesser("human_detection_numpy", perf_counter_name="human_detector_Seq" ,debug=debug_mode)
     try:
         for index in range(worker_num):
             gpu_index = next(gpu_gen)
@@ -240,7 +239,8 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
             inference_worker_set.add(inference_worker_process)
             if debug_mode: print(f"inference_worker_process of GPU{gpu_index} {inference_worker_process.pid} start")
 
-
+        frame_sequential_processer = FrameSequentialProcesser("human_detection_numpy",
+                                                              perf_counter_name="human_detector_Seq", debug=debug_mode)
         if debug_mode: print(f"imageflow_main_proc Start")
         while True:
             if debug_mode: print(f"imageflow_main_proc LOOP")
@@ -252,8 +252,6 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                     stream_frame_instance = stream_queue.get()
                     stream_frame_instance.sequence_perf_counter["human_detector_start"]=time.perf_counter()
                     if stream_frame_instance.bypass_flag is False:
-                        #instance_id = stream_frame_instance.stream_name + '-' + str(stream_frame_instance.captured_time) # 프레임별 ID생성
-                        #waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
                         instance_id = frame_sequential_processer.metadata_push(stream_frame_instance)
                         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance,
                                                                                                 debug=debug_mode)
