@@ -306,11 +306,8 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
             cv2.namedWindow(stream_name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(stream_name, 800, 600)
 
-        sorter_gen = dataclass_for_StreamFrameInstance.sorter(messy_frame_instance_queue=stream_queue_for_process,
-                                                              debug=debug)
-
         while True:
-            instances_per_frame_instance = next(sorter_gen)
+            instances_per_frame_instance = stream_queue_for_process.get()
             instances_per_frame_instance.sequence_perf_counter["viewer_after_sorter"] = time.perf_counter()
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
