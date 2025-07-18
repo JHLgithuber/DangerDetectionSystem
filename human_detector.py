@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from loguru import logger
 import dataclass_for_StreamFrameInstance
+from dataclass_for_StreamFrameInstance import FrameSequentialProcesser
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
@@ -149,7 +150,7 @@ class Predictor(object):
             batch_inputs.append(input_dict["img"])
             batch_ids.append(input_dict["id"])
 
-            if debug_mode: print(f"input_queue get {input_dict['id']}")
+            if debug_mode: print(f"[input_queue] get {input_dict['id']}")
             if not (len(batch_inputs) >= batch_size or (batch_inputs and time.time() - last_collect > max_wait)):
                 if debug_mode: print("not enough inputs for batch inference")
                 continue
@@ -224,8 +225,9 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
     inference_worker_set = set()
     input_queue = Queue(maxsize=32)
     output_queue = Queue(maxsize=32)
-    waiting_instance_dict = dict()
+    #waiting_instance_dict = dict()
     gpu_gen = gpu_index_generator()
+    frame_sequential_processer= FrameSequentialProcesser("human_detection_numpy", perf_counter_name="human_detector_Seq" ,debug=debug_mode)
     try:
         for index in range(worker_num):
             gpu_index = next(gpu_gen)
@@ -242,12 +244,14 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
             try:
                 # 받은 프레임을 추론 워커에 분배
                 if not stream_queue.empty():
+                    if debug_mode: print(f"stream_queue is not empty")
                     # 큐에서 프레임 객체 꺼내기
                     stream_frame_instance = stream_queue.get()
                     stream_frame_instance.sequence_perf_counter["human_detector_start"]=time.perf_counter()
                     if stream_frame_instance.bypass_flag is False:
-                        instance_id = stream_frame_instance.stream_name + '-' + str(stream_frame_instance.captured_time) # 프레임별 ID생성
-                        waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
+                        #instance_id = stream_frame_instance.stream_name + '-' + str(stream_frame_instance.captured_time) # 프레임별 ID생성
+                        #waiting_instance_dict[instance_id] = stream_frame_instance  # 입력 인스턴스 저장
+                        instance_id = frame_sequential_processer.metadata_push(stream_frame_instance)
                         frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance,
                                                                                                 debug=debug_mode)
                         input_queue.put({"img": frame, "id": instance_id})
@@ -258,18 +262,18 @@ def imageflow_main_proc(args, stream_queue, return_queue, worker_num=4, all_obje
                 # 추론 완료된 결과를 기존 인스턴스에 매칭 및 삽입 후 리턴
                 if not output_queue.empty():
                     output_dict = output_queue.get()
-                    if output_dict["id"] in waiting_instance_dict:
-                        if return_queue.full():
-                            return_queue.get()
-                        output_frame_instance = waiting_instance_dict.pop(output_dict["id"])  # id로 인스턴스 매칭
-                        if output_dict["output_numpy"] is None:
-                            output_frame_instance.human_detection_numpy = None
-                        else:
-                            output_frame_instance.human_detection_numpy = output_dict["output_numpy"]  # 추론결과 삽입
-                        output_frame_instance.sequence_perf_counter["human_detector_end"] = time.perf_counter()
-                        return_queue.put(output_frame_instance)
+                    if frame_sequential_processer.data_id_in_buffer(output_dict["id"]):
+                        frame_sequential_processer.processing_value_input(output_dict["id"],output_dict["output_numpy"])
                     else:
                         logger.info("output_dict id not found")
+
+                if frame_sequential_processer.is_oldest_finsh():
+                    if return_queue.full():
+                        return_queue.get()
+                    output_frame_instance=frame_sequential_processer.metadata_pop()
+                    output_frame_instance.sequence_perf_counter["human_detector_end"] = time.perf_counter()
+                    return_queue.put(output_frame_instance)
+                    if debug_mode: print(f"return_queue put {output_frame_instance.stream_name}-{output_frame_instance.captured_time}")
 
                 if input_queue.full():
                     print("[Warning] human_detector input_queue is FULL")

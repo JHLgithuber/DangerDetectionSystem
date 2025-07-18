@@ -35,8 +35,8 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
-         print_visual=True, web_viewer=False, imshow_viewer=True,
+def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
+         print_visual=True, web_viewer=True, imshow_viewer=True,
          max_frames=1000):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
