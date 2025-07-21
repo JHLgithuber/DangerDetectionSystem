@@ -12,7 +12,7 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-
+from functools import partial
 
 import fall_detecting_algorithm
 
@@ -31,7 +31,8 @@ class PoseDetector:
         debug (bool): 디버그 출력 여부
     """
 
-    def __init__(self, current_process_name="PoseDetectorProcess", model_asset_path='pose_landmarker.task', num_poses=4, show_now=False,
+    def __init__(self, model_asset_path='pose_landmarker.task', num_poses=4,
+                 show_now=False, num_process=4,
                  debug=False):
         base_options = python.BaseOptions(model_asset_path=model_asset_path)
         options = vision.PoseLandmarkerOptions(
@@ -40,31 +41,26 @@ class PoseDetector:
             output_segmentation_masks=False)
         self.detector = vision.PoseLandmarker.create_from_options(options)
         self.show_now = show_now
+        self.num_process = num_process
         self.debug = debug
-        self.current_process_name = current_process_name
+
+        self.pose_demo_name = "DRAWN IMAGE of ERROR"
+        self.crop_object_image_dict = None
+
+        self.instances_
+
+
+        self.input_q=Queue()
+        self.output_q=Queue()
+
+        self.pool_proc= pose_detector_pool_process(self.input_q, self.output_q, self.detector, num_process=self.num_process, debug=self.debug)
         if self.debug: print(f"pose_landmarker: {self.detector}")
 
-    def detect(self, stream_frame_instance, debug=False):
-        """
-        crop 이미지에서 포즈 추정 실행
+    def pre_detect(self, stream_frame_instance):
+        inst_id=time.perf_counter()
+        self.crop_object_image_dict[inst_id] = crop_objects(stream_frame_instance)
 
-        Args:
-            stream_frame_instance (StreamFrameInstance): 입력 프레임 객체
-            debug (bool): 디버그 출력 여부
-
-        Returns:
-            list: 각 객체별 pose 결과 리스트 (MediaPipe Result 또는 빈 리스트)
-        """
-        crop_object_images = crop_objects(stream_frame_instance)
-        pose_landmarker_results = list()
-
-        # 포즈 감지용 화면 초기화
-        pose_demo_name = "DRAWN IMAGE of ERROR"
-        if self.show_now:
-            pose_demo_name = f"DRAWN IMAGE of {self.current_process_name}"
-            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
-
-        for crop_object_img in crop_object_images:
+        for crop_object_img in self.crop_object_image_dict[inst_id]:
             # crop_object_img가 올바른 형식 인지 확인후 변환
             image_data = np.ascontiguousarray(crop_object_img['crop'])
             if image_data.dtype != np.uint8:
@@ -74,24 +70,77 @@ class PoseDetector:
                 image_format=mp.ImageFormat.SRGB,
                 data=image_data
             )
-            detection_result = self.detector.detect(mp_image)
-            if debug:
+            self.input_q.put({"id":time.perf_counter(), "mp_image":mp_image})
+
+    def detect(self, stream_frame_instance=None):
+        """
+        crop 이미지에서 포즈 추정 실행
+
+        Returns:
+            list: 각 객체별 pose 결과 리스트 (MediaPipe Result 또는 빈 리스트)
+        """
+
+        if stream_frame_instance is not None:
+            self.pre_detect(stream_frame_instance)
+
+        self.pose_landmarker_results.clear()
+        while not self.output_q.empty():
+            output_dict = self.output_q.get()
+            detection_result = output_dict["detection_result"]
+
+            if self.debug:
                 print(f"DETECTED by pose_landmarker: {detection_result}")
 
             if self.show_now:  # 포즈 감지용 화면 출력
-                annotated_image = draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'],
-                                                                        debug=debug)
-                cv2.imshow(pose_demo_name, annotated_image)
-                cv2.waitKey(1)
+                for crop_object_img in self.crop_object_image_dict:
+                    annotated_image = draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'],
+                                                                            debug=self.debug)
+                    cv2.imshow(self.pose_demo_name, annotated_image)
+                    cv2.waitKey(1)
 
             if detection_result:
-                pose_landmarker_results.append(detection_result)
+                self.pose_landmarker_results.append(detection_result)
             else:
-                pose_landmarker_results.append([])
+                self.pose_landmarker_results.append([])
 
-        if not pose_landmarker_results:
+        if not self.pose_landmarker_results:
             return None
-        return pose_landmarker_results
+        return self.pose_landmarker_results
+
+
+
+def pose_detector_pool_worker(mp_image_data_dict_list, detector):
+    detection_result = detector.detect(mp_image_data_dict_list["mp_image"])
+    return {"detection_result":detection_result, "id":mp_image_data_dict_list["id"]}
+
+def pose_detector_pool_process(input_q, output_q, detector, num_process=4, debug=False):
+    """
+    :param input_q: dict 형태 {"id":ID, "mp_image":mp_image}
+    :param output_q:
+    :param detector:
+    :param num_process:
+    :param debug:
+    :return:
+    """
+    pool = Pool(processes=num_process)
+    input_data_dict_list=list()
+    results=list()
+    pool_func = partial(pose_detector_pool_worker, detector=detector)
+    while True:
+        input_data_dict_list.clear()
+        results.clear()
+        for i in range(num_process):
+            try:
+                input_data_dict = input_q.get(timeout=1)
+                input_data_dict_list.append(input_data_dict)
+            except Empty:
+                break
+        results_dict_list=pool.map(pool_func, input_data_dict_list)
+        for result_dict in results_dict_list:
+            output_q.put(result_dict)
+
+
+
 
 
 
@@ -192,91 +241,29 @@ def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=Tr
     return crops
 
 
-def _pose_landmarker_process(input_queue, output_queue, model_asset_path, debug=False):
-    """
-    pose_landmarker를 사용하여 이미지에서 인물(사람)의 랜드마크를 추출하는 워커 프로세스
-
-    Args:
-        input_queue (Queue): 입력 프레임 큐 (StreamFrameInstance)
-        output_queue (Queue): 포즈 결과 포함된 프레임 출력 큐
-        debug (bool): 디버그 메시지 출력 여부
-
-    Returns:
-        None
-    """
-    pose_landmarker = PoseDetector(current_process_name=current_process().name, model_asset_path=model_asset_path,
-                                   debug=debug)
-    try:
-        while True:
-            input_data=input_queue.get()
-            #stream_frame_instance, data_id = input_queue.get()
-            if input_data["inst"] is None:
-                break
-
-            pose_landmarker_results = pose_landmarker.detect(input_data["inst"], debug=debug)
-
-            output_queue.put({"results":pose_landmarker_results, "id": input_data["id"]})
-            time.sleep(0)
-    except KeyboardInterrupt:
-        print(f"[DEBUG] instance of pose_landmarker is DIE: {current_process().name}")
-    except Exception as e:
-        print(f"[ERROR] pose_landmarker process: {e}")
 
 
-_pose_detector: PoseDetector = None
-
-def _init_pose_detector(model_asset_path: str, debug: bool):
-    global _pose_detector
-    _pose_detector = PoseDetector(
-        current_process_name=current_process().name,
-        model_asset_path=model_asset_path,
-        debug=debug,
-    )
-
-def _detect_instance(instance: StreamFrameInstance) -> StreamFrameInstance:
-    # 전역 _pose_detector 를 사용
-    instance.sequence_perf_counter["pose_detector_start"] = time.perf_counter()
-    result = _pose_detector.detect(instance)
-    instance.pose_detection_list = result
-    instance.sequence_perf_counter["pose_detector_end"] = time.perf_counter()
-    return instance
 
 def _pose_landmarker_flow(
     input_q, output_q,
     model_asset_path, process_num: int = 8, debug: bool = False
 ):
-    pool = Pool(
-        processes=process_num,
-        initializer=_init_pose_detector,
-        initargs=(model_asset_path, debug),
-    )
-
+    pose_detector = PoseDetector(current_process_name=current_process().name, model_asset_path=model_asset_path, debug=debug)
     try:
         while True:
-            # 1) 최대 process_num개 뽑아서
-            instances = []
-            for _ in range(process_num):
-                try:
-                    instances.append(input_q.get(timeout=0.005))
-                except Empty:
-                    break
+            instance=input_q.get()
+            instance.sequence_perf_counter["pose_detector_start"] = time.perf_counter()
 
-            if not instances:
-                time.sleep(0.005)
-                continue
 
-            # 2) 반드시 _detect_instance 로 map
-            results = pool.map(_detect_instance, instances)
+            result = pose_detector.detect(instance)
 
             # 3) 결과 다시 큐에
-            for inst in results:
-                output_q.put(inst)
+            instance.pose_detection_list=result
+            instance.sequence_perf_counter["pose_detector_end"] = time.perf_counter()
+            output_q.put(instance)
 
     except KeyboardInterrupt:
         pass
-    finally:
-        pool.close()
-        pool.join()
 
 def run_pose_landmarker_proc(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8,
                         debug=False):
