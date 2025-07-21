@@ -1,7 +1,10 @@
 import time
-from multiprocessing import Process, current_process, Queue
+from multiprocessing import Process, current_process, Queue, Pool
+from multiprocessing.pool import ThreadPool
+from dataclass_for_StreamFrameInstance import StreamFrameInstance
 import dataclass_for_StreamFrameInstance
 from dataclass_for_StreamFrameInstance import FrameSequentialProcesser
+from queue import Empty
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -15,6 +18,82 @@ import fall_detecting_algorithm
 
 
 # TODO: mediapipe가 GPU를 사용하도록 할 수 있을 텐데
+
+class PoseDetector:
+    """
+    MediaPipe 기반 포즈 추정기 클래스
+
+    Args:
+        current_process_name (str): 프로세스 이름 (디버깅용)
+        model_asset_path (str): 모델 파일 경로 (.task 파일)
+        num_poses (int): 최대 추정 인원 수
+        show_now (bool): 실시간 결과 시각화 여부
+        debug (bool): 디버그 출력 여부
+    """
+
+    def __init__(self, current_process_name="PoseDetectorProcess", model_asset_path='pose_landmarker.task', num_poses=4, show_now=False,
+                 debug=False):
+        base_options = python.BaseOptions(model_asset_path=model_asset_path)
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            num_poses=num_poses,
+            output_segmentation_masks=False)
+        self.detector = vision.PoseLandmarker.create_from_options(options)
+        self.show_now = show_now
+        self.debug = debug
+        self.current_process_name = current_process_name
+        if self.debug: print(f"pose_landmarker: {self.detector}")
+
+    def detect(self, stream_frame_instance, debug=False):
+        """
+        crop 이미지에서 포즈 추정 실행
+
+        Args:
+            stream_frame_instance (StreamFrameInstance): 입력 프레임 객체
+            debug (bool): 디버그 출력 여부
+
+        Returns:
+            list: 각 객체별 pose 결과 리스트 (MediaPipe Result 또는 빈 리스트)
+        """
+        crop_object_images = crop_objects(stream_frame_instance)
+        pose_landmarker_results = list()
+
+        # 포즈 감지용 화면 초기화
+        pose_demo_name = "DRAWN IMAGE of ERROR"
+        if self.show_now:
+            pose_demo_name = f"DRAWN IMAGE of {self.current_process_name}"
+            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
+
+        for crop_object_img in crop_object_images:
+            # crop_object_img가 올바른 형식 인지 확인후 변환
+            image_data = np.ascontiguousarray(crop_object_img['crop'])
+            if image_data.dtype != np.uint8:
+                image_data = image_data.astype(np.uint8)
+
+            mp_image = mp.Image(
+                image_format=mp.ImageFormat.SRGB,
+                data=image_data
+            )
+            detection_result = self.detector.detect(mp_image)
+            if debug:
+                print(f"DETECTED by pose_landmarker: {detection_result}")
+
+            if self.show_now:  # 포즈 감지용 화면 출력
+                annotated_image = draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'],
+                                                                        debug=debug)
+                cv2.imshow(pose_demo_name, annotated_image)
+                cv2.waitKey(1)
+
+            if detection_result:
+                pose_landmarker_results.append(detection_result)
+            else:
+                pose_landmarker_results.append([])
+
+        if not pose_landmarker_results:
+            return None
+        return pose_landmarker_results
+
+
 
 def crop_objects(stream_frame_instance, padding=10, cls_conf=0.35, need_frame=True, debug=False):
     """
@@ -144,70 +223,60 @@ def _pose_landmarker_process(input_queue, output_queue, model_asset_path, debug=
         print(f"[ERROR] pose_landmarker process: {e}")
 
 
-def _pose_landmarker_flow(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8,
-                        debug=False):
-    """
-    포즈 추정 워커 프로세스 다중 실행
+_pose_detector: PoseDetector = None
 
-    Args:
-        input_frame_instance_queue (Queue): 입력 StreamFrameInstance 큐
-        output_frame_instance_queue (Queue): 포즈 결과 포함한 출력 큐
-        process_num (int): 생성할 워커 프로세스 수
-        debug (bool): 디버그 메시지 출력 여부
-        model_asset_path:
+def _init_pose_detector(model_asset_path: str, debug: bool):
+    global _pose_detector
+    _pose_detector = PoseDetector(
+        current_process_name=current_process().name,
+        model_asset_path=model_asset_path,
+        debug=debug,
+    )
 
-    Returns:
-        list of Process: 실행된 프로세스 객체 리스트
+def _detect_instance(instance: StreamFrameInstance) -> StreamFrameInstance:
+    # 전역 _pose_detector 를 사용
+    instance.sequence_perf_counter["pose_detector_start"] = time.perf_counter()
+    result = _pose_detector.detect(instance)
+    instance.pose_detection_list = result
+    instance.sequence_perf_counter["pose_detector_end"] = time.perf_counter()
+    return instance
 
-    """
-    processes = list()
-    input_queue=Queue()
-    output_queue=Queue()
-    for i in range(process_num):
-        process = Process(name=f"_pose_landmarker_process-{i}", target=_pose_landmarker_process,
-                          args=(input_queue, output_queue, model_asset_path, debug))
-        process.daemon = True
-        process.start()
-        if debug: print(f"[DEBUG] pose_landmarker process {i} start")
-        processes.append(process)
+def _pose_landmarker_flow(
+    input_q, output_q,
+    model_asset_path, process_num: int = 8, debug: bool = False
+):
+    pool = Pool(
+        processes=process_num,
+        initializer=_init_pose_detector,
+        initargs=(model_asset_path, debug),
+    )
 
-    frame_sequential_processer=FrameSequentialProcesser(processing_data_name="pose_detection_list", perf_counter_name="pose_detector_Seq",
-                             debug=debug)
-    while True:
-        try:
-            if debug: print(f"[DEBUG] run_pose_landmarker LOOP")
-            print(f"[DEBUG] input_frame_instance_queue empty: {input_frame_instance_queue.empty()}")
-            if not input_frame_instance_queue.empty():
-                stream_frame_instance = input_frame_instance_queue.get()
-                stream_frame_instance.sequence_perf_counter["pose_detector_start"]=time.perf_counter()
-                instance_id=frame_sequential_processer.metadata_push(stream_frame_instance)
-                if debug: print(f"[DEBUG] instance of pose_landmarker: {stream_frame_instance}")
-                input_queue.put({"inst":stream_frame_instance, "id":instance_id})
+    try:
+        while True:
+            # 1) 최대 process_num개 뽑아서
+            instances = []
+            for _ in range(process_num):
+                try:
+                    instances.append(input_q.get(timeout=0.005))
+                except Empty:
+                    break
 
-            if not output_queue.empty():
-                output=output_queue.get()
-                if debug: print(f"[DEBUG] pose_landmarker_results: {output}")
-                frame_sequential_processer.processing_value_input(output["id"], output["results"])
+            if not instances:
+                time.sleep(0.005)
+                continue
 
-            if frame_sequential_processer.is_oldest_finsh():
-                if output_frame_instance_queue.full():
-                    output_frame_instance_queue.get()
-                    if debug: print(f"[DEBUG] output_frame_instance_queue full: {output_frame_instance_queue.full()}")
-                stream_frame_instance=frame_sequential_processer.metadata_pop()
-                stream_frame_instance.sequence_perf_counter["pose_detector_end"] = time.perf_counter()
-                output_frame_instance_queue.put(stream_frame_instance)
+            # 2) 반드시 _detect_instance 로 map
+            results = pool.map(_detect_instance, instances)
 
-            if input_queue.full():
-                print("[Warning] pose_detector input_queue is FULL")
-            if output_queue.full():
-                print("[Warning] pose_detector output_queue is FULL")
-            time.sleep(0)
+            # 3) 결과 다시 큐에
+            for inst in results:
+                output_q.put(inst)
 
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"[ERROR] run_pose_landmarker: {e}")
-    return processes
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pool.close()
+        pool.join()
 
 def run_pose_landmarker_proc(input_frame_instance_queue, output_frame_instance_queue, model_asset_path, process_num=8,
                         debug=False):
@@ -222,79 +291,6 @@ def run_pose_landmarker_proc(input_frame_instance_queue, output_frame_instance_q
 
 
 
-class PoseDetector:
-    """
-    MediaPipe 기반 포즈 추정기 클래스
-
-    Args:
-        current_process_name (str): 프로세스 이름 (디버깅용)
-        model_asset_path (str): 모델 파일 경로 (.task 파일)
-        num_poses (int): 최대 추정 인원 수
-        show_now (bool): 실시간 결과 시각화 여부
-        debug (bool): 디버그 출력 여부
-    """
-
-    def __init__(self, current_process_name, model_asset_path='pose_landmarker.task', num_poses=4, show_now=False,
-                 debug=False):
-        base_options = python.BaseOptions(model_asset_path=model_asset_path)
-        options = vision.PoseLandmarkerOptions(
-            base_options=base_options,
-            num_poses=num_poses,
-            output_segmentation_masks=False)
-        self.detector = vision.PoseLandmarker.create_from_options(options)
-        self.show_now = show_now
-        self.debug = debug
-        self.current_process_name = current_process_name
-        if self.debug: print(f"pose_landmarker: {self.detector}")
-
-    def detect(self, stream_frame_instance, debug=False):
-        """
-        crop 이미지에서 포즈 추정 실행
-
-        Args:
-            stream_frame_instance (StreamFrameInstance): 입력 프레임 객체
-            debug (bool): 디버그 출력 여부
-
-        Returns:
-            list: 각 객체별 pose 결과 리스트 (MediaPipe Result 또는 빈 리스트)
-        """
-        crop_object_images = crop_objects(stream_frame_instance)
-        pose_landmarker_results = list()
-
-        # 포즈 감지용 화면 초기화
-        pose_demo_name = "DRAWN IMAGE of ERROR"
-        if self.show_now:
-            pose_demo_name = f"DRAWN IMAGE of {self.current_process_name}"
-            cv2.namedWindow(pose_demo_name, cv2.WINDOW_NORMAL)
-
-        for crop_object_img in crop_object_images:
-            # crop_object_img가 올바른 형식 인지 확인후 변환
-            image_data = np.ascontiguousarray(crop_object_img['crop'])
-            if image_data.dtype != np.uint8:
-                image_data = image_data.astype(np.uint8)
-
-            mp_image = mp.Image(
-                image_format=mp.ImageFormat.SRGB,
-                data=image_data
-            )
-            detection_result = self.detector.detect(mp_image)
-            if debug:
-                print(f"DETECTED by pose_landmarker: {detection_result}")
-
-            if self.show_now:  # 포즈 감지용 화면 출력
-                annotated_image = draw_world_landmarks_with_coordinates(detection_result, crop_object_img['crop'],
-                                                                        debug=debug)
-                cv2.imshow(pose_demo_name, annotated_image)
-                cv2.waitKey(1)
-
-            if detection_result:
-                pose_landmarker_results.append(detection_result)
-            else:
-                pose_landmarker_results.append([])
-
-        if not pose_landmarker_results:
-            return None
-        return pose_landmarker_results
 
 
 # noinspection PyUnresolvedReferences
