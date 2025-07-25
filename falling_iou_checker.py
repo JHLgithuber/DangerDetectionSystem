@@ -18,14 +18,14 @@ def compute_iou(a, b):
     Returns:
         float: IoU 값 (0.0 ~ 1.0)
     """
-    xA = max(a[0], b[0]);
+    xA = max(a[0], b[0])
     yA = max(a[1], b[1])
-    xB = min(a[2], b[2]);
+    xB = min(a[2], b[2])
     yB = min(a[3], b[3])
-    interW = max(0, xB - xA);
+    interW = max(0, xB - xA)
     interH = max(0, yB - yA)
     interA = interW * interH
-    areaA = (a[2] - a[0]) * (a[3] - a[1]);
+    areaA = (a[2] - a[0]) * (a[3] - a[1])
     areaB = (b[2] - b[0]) * (b[3] - b[1])
     union = areaA + areaB - interA
     return interA / union if union > 0 else 0.0
@@ -48,55 +48,61 @@ def _fall_worker(in_q: Queue, out_q: Queue, buffer_size, iou_thresh, fall_ratio_
     """
     histories = {}
     while True:
-        frame: StreamFrameInstance = in_q.get()
-        frame.sequence_perf_counter["fallIouChecker_start"]=time.perf_counter()
-        name = frame.stream_name
-        # 스트림별 히스토리 생성 및 삽입, 오래된 항목 자동 삭제
-        history = histories.setdefault(name, deque(maxlen=buffer_size))
+        if debug: print(f"[Fall_IoU] run_fall_worker LOOP")
+        try:
+            frame: StreamFrameInstance = in_q.get()
+            frame.sequence_perf_counter["fallIouChecker_start"]=time.perf_counter()
+            name = frame.stream_name
 
-        crops = crop_objects(frame, need_frame=False)
-        current_data = []
-        fall_flags = []
+            # 스트림별 히스토리 생성 및 삽입, 오래된 항목 자동 삭제
+            history = histories.setdefault(name, deque(maxlen=buffer_size))
 
-        # 포즈 감지 결과가 있는지 여부
-        if frame.pose_detection_list is None:
-            if debug: print(f"[Fall_IoU] {name}pose_detection_list is None")
-            frame.fall_flag_list = None
+            current_data = []
+            fall_flags = []
+
+            # 포즈 감지 결과가 있는지 여부
+            if frame.pose_detection_numpy is None:
+                if debug: print(f"[Fall_IoU] {name}pose_detection_numpy is None")
+                frame.fall_flag_list = None
+                out_q.put(frame)
+                continue
+
+            for i, bbox in enumerate(frame.human_detection_numpy):
+                is_flag = detect_fall(frame.pose_detection_numpy[i], frame.pose_detection_conf[i], debug=debug)
+                if debug: print(f"[Fall_IoU] {name} idx={i} is_flag={is_flag}")
+
+                # 과거 frame의 모든 bbox와 비교
+                match_cnt = fall_cnt = 0
+                for past_frame in history:
+                    for past in past_frame:
+                        if compute_iou(past['bbox'], bbox) >= iou_thresh:
+                            match_cnt += 1
+                            if past['is_flag']:
+                                fall_cnt += 1
+
+                # 매칭된 프레임 중 fall 비율로 최종 판단
+                if match_cnt > 0 and (fall_cnt / match_cnt) >= fall_ratio_thresh:
+                    fall_flags.append(True)
+                    if debug: print(f"[Fall_IoU] {name} idx={i} FALL")
+                else:
+                    fall_flags.append(False)
+                    if debug: print(f"[Fall_IoU] {name} idx={i} Not FALL")
+
+                current_data.append({'bbox': bbox, 'is_flag': is_flag})
+                if debug: print(f"[Fall_IoU] current_data=> {name} idx={i} is_flag={is_flag}")
+
+            # 버퍼에 추가 하고 결과 저장
+            history.append(current_data)
+            frame.fall_flag_list = fall_flags
+            frame.sequence_perf_counter["fallIouChecker_end"]=time.perf_counter()
             out_q.put(frame)
-            continue
-
-        for i, crop in enumerate(crops):
-            bbox = tuple(crop['bbox'])
-            pose_det = frame.pose_detection_list[i]
-            is_flag = detect_fall(pose_det, debug=debug)
-            if debug: print(f"[Fall_IoU] {name} idx={i} is_flag={is_flag}")
-
-            # 과거 frame의 모든 bbox와 비교
-            match_cnt = fall_cnt = 0
-            for past_frame in history:
-                for past in past_frame:
-                    if compute_iou(past['bbox'], bbox) >= iou_thresh:
-                        match_cnt += 1
-                        if past['is_flag']:
-                            fall_cnt += 1
-
-            # 매칭된 프레임 중 fall 비율로 최종 판단
-            if match_cnt > 0 and (fall_cnt / match_cnt) >= fall_ratio_thresh:
-                fall_flags.append(True)
-                if debug: print(f"[Fall_IoU] {name} idx={i} FALL")
-            else:
-                fall_flags.append(False)
-                if debug: print(f"[Fall_IoU] {name} idx={i} Not FALL")
-
-            current_data.append({'bbox': bbox, 'is_flag': is_flag})
-            if debug: print(f"[Fall_IoU] current_data=> {name} idx={i} is_flag={is_flag}")
-
-        # 버퍼에 추가 하고 결과 저장
-        history.append(current_data)
-        frame.fall_flag_list = fall_flags
-        frame.sequence_perf_counter["fallIouChecker_end"]=time.perf_counter()
-        out_q.put(frame)
-        time.sleep(0)
+            time.sleep(0)
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] fall_worker: {e}")
+            traceback.print_exc()
 
 
 def run_fall_worker(input_q: Queue, output_q: Queue,

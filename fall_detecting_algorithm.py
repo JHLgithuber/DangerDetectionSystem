@@ -18,32 +18,32 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
             - is_fallen (bool): 낙상 판단 결과
             - fallen_reason (str): 낙상 판정 이유 요약 문자열
     """
-    # Mediapipe landmark 좌표 (정규화 좌표)
-    left_shoulder = lm2d_list[11]
-    right_shoulder = lm2d_list[12]
-    left_hip = lm2d_list[23]
-    right_hip = lm2d_list[24]
-    left_knee = lm2d_list[25]
-    right_knee = lm2d_list[26]
-    left_ankle = lm2d_list[27]
-    right_ankle = lm2d_list[28]
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    left_hip = lm2d_list[11]
+    right_hip = lm2d_list[12]
+    left_knee = lm2d_list[13]
+    right_knee = lm2d_list[14]
+    left_ankle = lm2d_list[15]
+    right_ankle = lm2d_list[16]
+
 
     # 부위별 중앙점 계산
-    mid_shoulder_x = (left_shoulder.x + right_shoulder.x) / 2
-    mid_shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
-    mid_hip_x = (left_hip.x + right_hip.x) / 2
-    mid_hip_y = (left_hip.y + right_hip.y) / 2
-    mid_knee_x = (left_knee.x + right_knee.x) / 2
-    mid_knee_y = (left_knee.y + right_knee.y) / 2
-    mid_ankle_x = (left_ankle.x + right_ankle.x) / 2
-    mid_ankle_y = (left_ankle.y + right_ankle.y) / 2
+    mid_shoulder_x = (left_shoulder[0] + right_shoulder[0]) / 2
+    mid_shoulder_y = (left_shoulder[1] + right_shoulder[1]) / 2
+    mid_hip_x = (left_hip[0] + right_hip[0]) / 2
+    mid_hip_y = (left_hip[1] + right_hip[1]) / 2
+    mid_knee_x = (left_knee[0] + right_knee[0]) / 2
+    mid_knee_y = (left_knee[1] + right_knee[1]) / 2
+    mid_ankle_x = (left_ankle[0] + right_ankle[0]) / 2
+    mid_ankle_y = (left_ankle[1] + right_ankle[1]) / 2
 
     # 부위별 벡터 계산
     torso_vec = (mid_hip_x - mid_shoulder_x, mid_hip_y - mid_shoulder_y)
     thigh_vec = (mid_knee_x - mid_hip_x, mid_knee_y - mid_hip_y)
     calf_vec = (mid_ankle_x - mid_knee_x, mid_ankle_y - mid_knee_y)
-    left_calf_vec = (left_ankle.x - left_knee.x, left_ankle.y - left_knee.y)
-    right_calf_vec = (right_ankle.x - right_knee.x, right_ankle.y - right_knee.y)
+    left_calf_vec = (left_ankle[0] - left_knee[0], left_ankle[1] - left_knee[1])
+    right_calf_vec = (right_ankle[0] - right_knee[0], right_ankle[1] - right_knee[1])
 
     if debug:
         print(
@@ -80,51 +80,6 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     return is_fallen, fallen_reason
 
 
-def detect_fall_feet(lm2d_list, threshold=0.03, debug=False):
-    """
-    발끝 또는 뒤꿈치가 발목보다 위에 있으면 낙상으로 판정
-
-    Args:
-        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
-        threshold (float): y좌표 차이 임계값 (기본 0.03)
-        debug (bool): 디버그 출력 여부
-
-    Returns:
-        tuple:
-            - is_fallen (bool): 낙상 여부
-            - reason (str): 판단 근거 문자열
-    """
-    left_ankle = lm2d_list[27]
-    right_ankle = lm2d_list[28]
-    left_toe = lm2d_list[31]
-    right_toe = lm2d_list[32]
-    left_heel = lm2d_list[29]
-    right_heel = lm2d_list[30]
-
-    # 뒤로 넘어짐
-    left_toe_diff = left_ankle.y - left_toe.y
-    right_toe_diff = right_ankle.y - right_toe.y
-    fallen_back = (left_toe_diff > threshold) or (right_toe_diff > threshold)
-
-    # 앞으로 엎어짐
-    left_heel_diff = left_ankle.y - left_heel.y
-    right_heel_diff = right_ankle.y - right_heel.y
-    fallen_front = (left_heel_diff > threshold) or (right_heel_diff > threshold)
-
-    is_fallen = fallen_back or fallen_front
-
-    reason = (
-        f"ToeDiff L:{left_toe_diff:.3f} R:{right_toe_diff:.3f} | "
-        f"HeelDiff L:{left_heel_diff:.3f} R:{right_heel_diff:.3f} | "
-        f"FallenBack: {fallen_back}, FallenFront: {fallen_front}"
-    )
-
-    if debug:
-        print(f"[FALL_FEET] {reason}")
-
-    return is_fallen, reason
-
-
 # noinspection PyUnusedLocal
 def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
     """
@@ -140,18 +95,18 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
             - is_fallen (bool): 낙상 여부
             - fallen_reason (str): 비율 비교에 따른 결과 설명
     """
-    left_shoulder = lm2d_list[11]
-    right_shoulder = lm2d_list[12]
-    left_hip = lm2d_list[23]
-    right_hip = lm2d_list[24]
-    left_knee = lm2d_list[25]
-    right_knee = lm2d_list[26]
-    left_ankle = lm2d_list[27]
-    right_ankle = lm2d_list[28]
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    left_hip = lm2d_list[11]
+    right_hip = lm2d_list[12]
+    left_knee = lm2d_list[13]
+    right_knee = lm2d_list[14]
+    left_ankle = lm2d_list[15]
+    right_ankle = lm2d_list[16]
 
     # 신체 비율 계산
-    width_body = abs(right_shoulder.x - left_shoulder.x)
-    height_body = abs((right_shoulder.y - right_ankle.y + left_shoulder.y - left_ankle.y) / 2.0)
+    width_body = abs(right_shoulder[0] - left_shoulder[0])
+    height_body = abs((right_shoulder[1] - right_ankle[1] + left_shoulder[1] - left_ankle[1]) / 2.0)
     ratio_body = height_body / width_body if width_body > 1e-6 else float('inf')
 
     if ratio_body < min_recline_ratio:
@@ -178,24 +133,25 @@ def detect_fall_normalized(lm2d_list):
             - reason (None): 설명 문자열 (미구현, None 반환)
     """
     # 2D 정규화 좌표 기반 으로 모든 계산
-    left_shoulder = lm2d_list[11]
-    right_shoulder = lm2d_list[12]
-    left_hip = lm2d_list[23]
-    right_hip = lm2d_list[24]
-    left_knee = lm2d_list[25]
-    right_knee = lm2d_list[26]
-    left_ankle = lm2d_list[27]
-    right_ankle = lm2d_list[28]
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    left_hip = lm2d_list[11]
+    right_hip = lm2d_list[12]
+    left_knee = lm2d_list[13]
+    right_knee = lm2d_list[14]
+    left_ankle = lm2d_list[15]
+    right_ankle = lm2d_list[16]
+
 
     # 중앙점 계산 (정규화 좌표)
-    mid_shoulder_x = (left_shoulder.x + right_shoulder.x) / 2.0
-    mid_shoulder_y = (left_shoulder.y + right_shoulder.y) / 2.0
-    mid_hip_x = (left_hip.x + right_hip.x) / 2.0
-    mid_hip_y = (left_hip.y + right_hip.y) / 2.0
-    mid_knee_x = (left_knee.x + right_knee.x) / 2.0
-    mid_knee_y = (left_knee.y + right_knee.y) / 2.0
-    mid_ankle_x = (left_ankle.x + right_ankle.x) / 2.0
-    mid_ankle_y = (left_ankle.y + right_ankle.y) / 2.0
+    mid_shoulder_x = (left_shoulder[0] + right_shoulder[0]) / 2.0
+    mid_shoulder_y = (left_shoulder[1] + right_shoulder[1]) / 2.0
+    mid_hip_x = (left_hip[0] + right_hip[0]) / 2.0
+    mid_hip_y = (left_hip[1] + right_hip[1]) / 2.0
+    mid_knee_x = (left_knee[0] + right_knee[0]) / 2.0
+    mid_knee_y = (left_knee[1] + right_knee[1]) / 2.0
+    mid_ankle_x = (left_ankle[0] + right_ankle[0]) / 2.0
+    mid_ankle_y = (left_ankle[1] + right_ankle[1]) / 2.0
 
     # 척추 벡터 및 길이 (정규화)
     spine_vec_x = mid_hip_x - mid_shoulder_x
@@ -203,8 +159,8 @@ def detect_fall_normalized(lm2d_list):
     spine_length = (spine_vec_x ** 2 + spine_vec_y ** 2) ** 0.5
 
     # 허리 폭 (정규화)
-    waist_vec_x = right_hip.x - left_hip.x
-    waist_vec_y = right_hip.y - left_hip.y
+    waist_vec_x = right_hip[0] - left_hip[0]
+    waist_vec_y = right_hip[1] - left_hip[1]
     waist_width = (waist_vec_x ** 2 + waist_vec_y ** 2) ** 0.5
 
     # 척추 대 허리 비율
@@ -216,8 +172,8 @@ def detect_fall_normalized(lm2d_list):
     spine_angle_deg = math.degrees(math.acos(dot))
 
     # 좌우 어깨/엉덩이 높이 차이(정규화)
-    shoulder_y_diff = abs(left_shoulder.y - right_shoulder.y)
-    hip_y_diff = abs(left_hip.y - right_hip.y)
+    shoulder_y_diff = abs(left_shoulder[1] - right_shoulder[1])
+    hip_y_diff = abs(left_hip[1] - right_hip[1])
 
     # 임계값은 정규화 단위(대략 0.18~0.2, 실험적으로 조정)
     is_side_fall = (shoulder_y_diff > 0.18) or (hip_y_diff > 0.18)
@@ -227,32 +183,30 @@ def detect_fall_normalized(lm2d_list):
     return is_fall_final, None
 
 
-def check_visibility_presence(lm2d_list):
+def check_visibility_presence(conf_array, threshold=0.5):
     """
-    주요 관절의 visibility, presence 신뢰도 검사
+    YOLOv11 포즈 키포인트 신뢰도 검사
 
     Args:
-        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
+        conf_array (array-like): (17,) 형태의 confidence 배열
+        threshold (float): 신뢰도 기준값
 
     Returns:
-        bool: 모든 관절이 기준 이상일 경우 True, 하나라도 부족하면 False
+        bool: 주요 관절의 confidence가 기준 이상일 경우 True
     """
-    check_point_list = list()
-    check_point_list.append(lm2d_list[11])  # left_shoulder
-    check_point_list.append(lm2d_list[12])  # right_shoulder
-    check_point_list.append(lm2d_list[23])  # left_hip
-    check_point_list.append(lm2d_list[24])  # right_hip
-    check_point_list.append(lm2d_list[25])  # left_knee
-    check_point_list.append(lm2d_list[26])  # right_knee
-    check_point_list.append(lm2d_list[27])  # left_ankle
-    check_point_list.append(lm2d_list[28])  # right_ankle
-    for lm in check_point_list:
-        if not (hasattr(lm, 'visibility') and lm.visibility > 0.00 and hasattr(lm, 'presence') and lm.presence > 0.6):
+    # YOLOv11 (COCO 포맷) 기준 주요 관절 인덱스
+    keypoint_indices = [5, 6, 11, 12, 13, 14, 15, 16]
+
+    # 배열 타입과 길이 확인
+    if conf_array is None or len(conf_array) < max(keypoint_indices) + 1:
+        return False
+
+    for idx in keypoint_indices:
+        if conf_array[idx] < threshold:
             return False
     return True
 
-
-def detect_fall(detection_result, debug=False):
+def detect_fall(detection_result, conf, debug=False):
     """
     여러 낙상 판단 알고리즘 기반 낙상 감지
 
@@ -266,41 +220,27 @@ def detect_fall(detection_result, debug=False):
             - False: 낙상 아님
             - None: 판단 불가 (신뢰도 부족 또는 landmark 없음)
     """
-    # 2D 정규화 랜드마크 리스트 (list of list)
-    pixel_landmarks_list = detection_result.pose_landmarks
 
     # 랜드마크 리스트가 없으면 반환
-    if not pixel_landmarks_list:
+    if detection_result is None or len(detection_result) == 0:
         return None
 
-    # 인물(사람)별로 순회
-    for idx in range(len(pixel_landmarks_list)):
-        lm2d_list = pixel_landmarks_list[idx]
-        if not lm2d_list:
-            continue
-        else:
-            if not check_visibility_presence(lm2d_list):
-                return None
+    if not check_visibility_presence(conf):
+        return None
 
-        result_by_normalization = detect_fall_normalized(lm2d_list)
-        result_by_angle = detect_fall_angle(lm2d_list)
-        result_by_recline = detect_fall_recline(lm2d_list)
-        result_by_feet = detect_fall_feet(lm2d_list)
+    result_by_normalization = detect_fall_normalized(detection_result)
+    result_by_angle = detect_fall_angle(detection_result)
+    result_by_recline = detect_fall_recline(detection_result)
 
-        if result_by_angle[0]:
-            if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
-            return True
-        elif result_by_feet[0]:
-            if debug: print(f"FALL DETECTED by feet: {result_by_feet[1]}")
-            return True
-        # elif result_by_recline[0]:
-        #     if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
-        #     return True
-        # elif result_by_normalization[0]:
-        #     if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
-        #     return True
-        else:
-            if debug: print("FALL NOT DETECTED")
-            return False
-
-    return None
+    if result_by_angle[0]:
+        if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
+        return True
+    # elif result_by_recline[0]:
+    #     if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
+    #     return True
+    # elif result_by_normalization[0]:
+    #     if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
+    #     return True
+    else:
+        if debug: print("FALL NOT DETECTED")
+        return False

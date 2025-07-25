@@ -28,33 +28,18 @@ def visual_from_fall_flag(stream_frame_instance, debug=True):
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=debug)
 
-    # 2. 객체별 crop 정보 구하기
-    crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
+    frame = _draw_bbox(frame, stream_frame_instance.human_detection_numpy)
+    frame = _draw_skeleton(frame, stream_frame_instance.pose_detection_numpy)
 
     # 3. 각 객체(사람)별로 skeleton 그린 overlay로 합성
-    for crop_object_img, pose_detection, fall_flag in zip(
-            crop_object_images, stream_frame_instance.pose_detection_numpy, stream_frame_instance.fall_flag_list):
-
-        # overlay에 skeleton 그리기
-        pose_landmark_overlay = draw_world_landmarks_with_coordinates(
-            pose_detection, img_size=crop_object_img["img_size"], )
-
+    for fall_flag, bbox in zip(stream_frame_instance.fall_flag_list,stream_frame_instance.human_detection_numpy):
+        x1, y1, x2, y2 = map(int, bbox)
         if fall_flag:
-            cv2.putText(pose_landmark_overlay, "Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255),
+            cv2.putText(frame, "Triggered FALL", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255),
                         2)
         else:
-            cv2.putText(pose_landmark_overlay, "NOT Triggered FALL", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+            cv2.putText(frame, "NOT Triggered FALL", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
                         (0, 255, 0), 2)
-
-        # bbox 좌표
-        x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
-
-        # 원본 frame의 해당 ROI 영역
-        roi = frame[y1_p:y2_p, x1_p:x2_p]
-        # 마스크: overlay 에서 검정이 아닌 부분만 True
-        mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
-        # ROI에 overlay: mask 부분만 복사
-        roi[mask] = pose_landmark_overlay[mask]
 
     return frame
 
@@ -365,7 +350,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                 print(time_delta_log)
 
             cv2.waitKey(1)
-            time.sleep(0.0001)
+            time.sleep(0.01)
     except Exception as e:
         print(f"\n[ERROR] DEMO VIEWER of {stream_name} terminated due to: {e}")
     except KeyboardInterrupt:

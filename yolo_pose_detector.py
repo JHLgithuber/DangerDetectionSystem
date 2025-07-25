@@ -1,5 +1,5 @@
 import time
-
+from queue import Empty
 import cv2
 from multiprocessing import Process, current_process, Queue
 from ultralytics import YOLO
@@ -10,7 +10,7 @@ import cv2
 
 import cv2
 
-def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=10, debug=False):
+def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=50, debug=False):
     yolo_pose_process = Process(
         name=f"yolo_pose_worker",
         target=yolo_pose_worker,
@@ -20,39 +20,53 @@ def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_siz
     yolo_pose_process.start()
     return yolo_pose_process
 
-def yolo_pose_worker(input_q, output_q, model_path, conf=0.3, max_batch_size=50, debug=False, plot=False,):
+def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug, plot=False,):
     detector=YOLOPoseDetector(model_path=model_path, conf=conf)
     stream_frame_instance_list=list()
     frame_list=list()
     while True:
+        stream_frame_instance_list.clear()
+        frame_list.clear()
         if debug: print(f"[DEBUG] yolo_pose_worker LOOP")
         try:
-            while not input_q.empty() and len(stream_frame_instance_list)<max_batch_size:
-                stream_frame_instance = input_q.get()
-                stream_frame_instance.sequence_perf_counter["yolo_pose_start"]=time.perf_counter()
-                stream_frame_instance_list.append(stream_frame_instance)
-                frame=dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance)
-                frame_list.append(frame)
+            # 첫 프레임을 blocking하게 대기 (최대 0.1초)
+            stream_frame_instance = input_q.get(timeout=0.1)
+            batch_time = time.perf_counter()
+            stream_frame_instance.sequence_perf_counter["yolo_pose_start"] = batch_time
+            stream_frame_instance_list.append(stream_frame_instance)
+            frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance)
+            frame_list.append(frame)
 
-            results=detector.run_inference(frame_list)
-            #if debug: print(results)
+            # 이후는 non-blocking
+            while len(stream_frame_instance_list) < max_batch_size and time.perf_counter() - batch_time < 0.2:
+                try:
+                    stream_frame_instance = input_q.get_nowait()
+                    stream_frame_instance.sequence_perf_counter["yolo_pose_start"] = time.perf_counter()
+                    stream_frame_instance_list.append(stream_frame_instance)
+                    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance)
+                    frame_list.append(frame)
+                except Empty:
+                    break
 
-            for stream_frame_instance, result in zip(stream_frame_instance_list, results):
-                if plot:
-                    vis=result.plot()
-                    cv2.imshow(stream_frame_instance.stream_name+" yolo_pose_debug",vis)
-                    cv2.waitKey(1)
-                stream_frame_instance.human_detection_numpy=result.boxes.xyxy.cpu().numpy()
-                stream_frame_instance.pose_detection_numpy=result.keypoints.xy.cpu().numpy()
-                stream_frame_instance.sequence_perf_counter["yolo_pose_end"]=time.perf_counter()
-                output_q.put(stream_frame_instance)
-            stream_frame_instance_list.clear()
-            frame_list.clear()
+            if frame_list:
+                results = detector.run_inference(frame_list)
+                for stream_frame_instance, result in zip(stream_frame_instance_list, results):
+                    if plot:
+                        vis = result.plot()
+                        cv2.imshow(stream_frame_instance.stream_name + " yolo_pose_debug", vis)
+                        cv2.waitKey(1)
 
-        except KeyboardInterrupt:
-            break
+                    stream_frame_instance.human_detection_numpy = result.boxes.xyxy.cpu().numpy()
+                    stream_frame_instance.pose_detection_numpy = result.keypoints.xy.cpu().numpy()
+                    stream_frame_instance.pose_detection_conf = result.keypoints.conf.cpu().numpy()
+                    stream_frame_instance.sequence_perf_counter["yolo_pose_end"] = time.perf_counter()
+                    output_q.put(stream_frame_instance)
+
+        except Empty:
+            continue  # input_q에 아무것도 없으면 다음 루프
+
         except Exception as e:
-            print(f"Error in yolo_pose_worker: {e}")
+            print(f"[yolo_pose_worker ERROR] {e}")
 
 
 
@@ -63,7 +77,6 @@ class YOLOPoseDetector:
         self.debug = debug
 
         self.model = YOLO(model_path)
-        self.model.predict()
         self.model.fuse()
 
     def run_inference(self, frames):
