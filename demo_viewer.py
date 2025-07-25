@@ -76,35 +76,41 @@ def visual_from_pose_estimation(stream_frame_instance, debug=True):
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
         stream_frame_instance, debug=debug)
 
-    # 2. 객체별 crop 정보 구하기
-    crop_object_images = crop_objects(stream_frame_instance, need_frame=False)
+    frame = _draw_bbox(frame, stream_frame_instance.human_detection_numpy)
+    keypoints = stream_frame_instance.pose_detection_numpy
 
-    # 3. 각 객체(사람)별로 sk 그린 overlay 로 합성
-    for crop_object_img, pose_detection in zip(
-            crop_object_images, stream_frame_instance.pose_detection_numpy):
-        # (1) crop 크기 만큼 검정 배경 생성
-        # crop_h, crop_w = crop_object_img["crop"].shape[:2]
-        # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
-
-        # (2) overlay에 skeleton 그리기
-        pose_landmark_overlay = draw_world_landmarks_with_coordinates(
-            pose_detection, img_size=crop_object_img["img_size"], )
-
-        # (3) bbox 좌표
-        x1_p, y1_p, x2_p, y2_p = crop_object_img["bbox"]
-
-        # (4) 원본 frame의 해당 ROI 영역
-        roi = frame[y1_p:y2_p, x1_p:x2_p]
-        # (5) 마스크: overlay 에서 검정이 아닌 부분만 True
-        mask = np.any(pose_landmark_overlay != [0, 0, 0], axis=2)
-        # (6) ROI에 overlay: mask 부분만 복사
-        roi[mask] = pose_landmark_overlay[mask]
-        # (7) (frame은 numpy view 라서 자동 적용)
+    frame = _draw_skeleton(frame, keypoints)
 
     return frame
 
+def _draw_skeleton(frame, keypoints, bone_color=(255, 255, 255), angle_color=(0, 255, 255)):
+    # COCO keypoint 연결선 (관절 연결)
+    coco_skeleton = [
+        (5, 7), (7, 9),  # 왼팔
+        (6, 8), (8, 10),  # 오른팔
+        (11, 13), (13, 15),  # 왼다리
+        (12, 14), (14, 16),  # 오른다리
+        (5, 6),  # 어깨
+        (11, 12),  # 엉덩이
+        (5, 11), (6, 12),  # 몸통
+    ]
 
-def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35, debug=True):
+    for keypoint in keypoints:
+        # 점 그리기
+        for (x, y) in keypoint:
+            x, y = int(x), int(y)
+            cv2.circle(frame, (x, y), 2, angle_color, -1)
+
+        # 선 그리기
+        for j, k in coco_skeleton:
+            x1, y1 = keypoint[j]
+            x2, y2 = keypoint[k]
+            pt1 = (int(x1), int(y1))
+            pt2 = (int(x2), int(y2))
+            cv2.line(frame, pt1, pt2, bone_color, 1)
+    return frame
+
+def visual_from_detection_numpy(stream_frame_instance, debug=True):
     """
     객체 탐지 결과를 프레임에 시각화
 
@@ -119,23 +125,15 @@ def visual_from_detection_numpy(stream_frame_instance, cls_conf=0.35, debug=True
         :param debug:
     """
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=debug)
-    test_size = (stream_frame_instance.human_detection_tsize, stream_frame_instance.human_detection_tsize)
-    ratio = min(test_size[0] / frame.shape[0], test_size[1] / frame.shape[1])
-    output = stream_frame_instance.human_detection_numpy
+    boxes = stream_frame_instance.human_detection_numpy
 
-    if output is None:
-        return frame
-    bboxes = output[:, 0:4]
+    return _draw_bbox(frame, boxes)
 
-    # preprocessing: resize
-    bboxes /= ratio
-
-    cls = output[:, 6]
-    scores = output[:, 4] * output[:, 5]
-
-    vis_res = vis(frame, bboxes, scores, cls, cls_conf, COCO_CLASSES)  # frame에 결과 그려줌
-    return vis_res
-
+def _draw_bbox(frame, boxes, color=(0, 255, 0)):
+    for box in boxes:
+        x1, y1, x2, y2 = map(int, box)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+    return frame
 
 def demo_viewer(stream_name, frame, debug=False):
     """
@@ -327,7 +325,6 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                     elif instances_per_frame_instance.human_detection_numpy is not None:  # 객체 감지가 완료된 프레임
                         result_frame = visual_from_detection_numpy(
                             stream_frame_instance=instances_per_frame_instance,
-                            cls_conf=0.35,
                             debug=debug,
                         )
                     else:  # 별도의 처리가 없었던 프레임
