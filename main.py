@@ -161,8 +161,8 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             #if not yolox_process.is_alive():
             #    raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
-            if not pose_process.is_alive():
-                raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
+            #if not pose_process.is_alive():
+            #    raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
             #if not fall_checker.is_alive():
             #    raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
 
@@ -187,9 +187,9 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if pose_process:  # 포즈 추정 프로세스 종료
-                pose_process.terminate()
-                pose_process.join(timeout=5.0)
+            #if pose_process:  # 포즈 추정 프로세스 종료
+            #    pose_process.terminate()
+            #    pose_process.join(timeout=5.0)
 
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
         ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-        ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+        #("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
         # ("LiveCamera_Windows", "video=Logitech BRIO", "dshow"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),

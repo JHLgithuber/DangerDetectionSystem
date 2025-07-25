@@ -38,7 +38,7 @@ class StreamFrameInstance:
     # noinspection SpellCheckingInspection
     human_detection_tsize: int = 640
     human_tracking_serial: Optional[List[Dict[str, Any]]] = None
-    pose_detection_list: Optional[np.ndarray] = None
+    pose_detection_numpy: Optional[np.ndarray] = None
     fall_flag_list: Optional[List[bool]] = None
     bypass_flag: bool = False
     sequence_perf_counter: dict = None

@@ -33,7 +33,7 @@ def visual_from_fall_flag(stream_frame_instance, debug=True):
 
     # 3. 각 객체(사람)별로 skeleton 그린 overlay로 합성
     for crop_object_img, pose_detection, fall_flag in zip(
-            crop_object_images, stream_frame_instance.pose_detection_list, stream_frame_instance.fall_flag_list):
+            crop_object_images, stream_frame_instance.pose_detection_numpy, stream_frame_instance.fall_flag_list):
 
         # overlay에 skeleton 그리기
         pose_landmark_overlay = draw_world_landmarks_with_coordinates(
@@ -81,7 +81,7 @@ def visual_from_pose_estimation(stream_frame_instance, debug=True):
 
     # 3. 각 객체(사람)별로 sk 그린 overlay 로 합성
     for crop_object_img, pose_detection in zip(
-            crop_object_images, stream_frame_instance.pose_detection_list):
+            crop_object_images, stream_frame_instance.pose_detection_numpy):
         # (1) crop 크기 만큼 검정 배경 생성
         # crop_h, crop_w = crop_object_img["crop"].shape[:2]
         # overlay = np.zeros((crop_h, crop_w, 3), dtype=np.uint8)
@@ -319,7 +319,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                             stream_frame_instance=instances_per_frame_instance,
                             debug=debug,
                         )
-                    elif instances_per_frame_instance.pose_detection_list is not None:  # 포즈 감지가 완료된 프레임
+                    elif instances_per_frame_instance.pose_detection_numpy is not None:  # 포즈 감지가 완료된 프레임
                         result_frame = visual_from_pose_estimation(
                             stream_frame_instance=instances_per_frame_instance,
                             debug=debug,
