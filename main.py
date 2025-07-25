@@ -10,6 +10,7 @@ import stream_server as stream
 from demo_viewer import start_imshow_demo
 from stream_input import InputStream
 from yolox.exp import get_exp
+import yolo_pose_detector
 
 #TODO: sorter제거 후 프레임 안섞이게
 
@@ -35,7 +36,7 @@ def get_args():
     return hard_args
 
 
-def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
+def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
          print_visual=True, web_viewer=True, imshow_viewer=True,
          max_frames=1000):
     """
@@ -112,27 +113,35 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
                                         show_latency=show_latency, show_fps=show_fps, visual=print_visual, debug=debug_mode)
 
         # YOLOX ObjectDetection
-        args = get_args()
-        exp = get_exp(args.exp_file, args.name)
-        after_object_detection_queue = Queue(maxsize=20 * stream_many)
-        yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
-                                            process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
-        yolox_process.start()
+        #args = get_args()
+        #exp = get_exp(args.exp_file, args.name)
+        #after_object_detection_queue = Queue(maxsize=20 * stream_many)
+        #yolox_process = human_detector.main(exp, args, input_metadata_queue, after_object_detection_queue,
+        #                                    process_num=yolox_cores, all_object=False, debug_mode=debug_mode)
+        #yolox_process.start()
 
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=20 * stream_many)
-        pose_process = pose_detector.run_pose_landmarker_proc(process_num=mp_cores,
-                                                         input_frame_instance_queue=after_object_detection_queue,
-                                                         output_frame_instance_queue=after_pose_estimation_queue,
-                                                         model_asset_path="pose_landmarker.task",
-                                                         debug=debug_mode, )
+        #pose_process = pose_detector.run_pose_landmarker_proc(process_num=mp_cores,
+        #                                                 input_frame_instance_queue=after_object_detection_queue,
+        #                                                 output_frame_instance_queue=after_pose_estimation_queue,
+        #                                                 model_asset_path="pose_landmarker.task",
+        #                                                 debug=debug_mode, )
+
+        pose_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.pt",
+                                                                input_q=input_metadata_queue,
+                                                                output_q=output_metadata_queue,
+                                                                conf=0.3,
+                                                                max_batch_size=10,
+                                                                debug=debug_mode, )
+
 
         # Falling multi frame IoU Checker
-        fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
-                                                           output_q=output_metadata_queue,
-                                                           buffer_size=50,
-                                                           fall_ratio_thresh=0.7,
-                                                           debug=debug_mode)
+        #fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
+        #                                                   output_q=output_metadata_queue,
+        #                                                   buffer_size=50,
+        #                                                   fall_ratio_thresh=0.7,
+        #                                                   debug=debug_mode)
 
         # 입력 스트림 실행
         for name, instance in stream_instance_dict.items():
@@ -143,19 +152,19 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
             # Bottle Neck Check
             if input_metadata_queue.full(): print("[Warning] input_metadata_queue is FULL")
             if output_metadata_queue.full(): print("[Warning] output_metadata_queue is FULL")
-            if after_object_detection_queue.full(): print("[Warning] after_object_detection_queue is FULL")
+            #if after_object_detection_queue.full(): print("[Warning] after_object_detection_queue is FULL")
             if after_pose_estimation_queue.full(): print("[Warning] after_pose_estimation_queue is FULL")
             if server_queue is not None and server_queue.full(): print("[Warning] server_queue is FULL")
 
             # Watch Dog
             if not demo_thread.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
-            if not yolox_process.is_alive():
-                raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
+            #if not yolox_process.is_alive():
+            #    raise RuntimeError("[MAIN PROC WD ERROR] yolox process is dead")
             if not pose_process.is_alive():
-                raise RuntimeError("[MAIN PROC WD ERROR] mp porc is dead")
-            if not fall_checker.is_alive():
-                raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
+                raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
+            #if not fall_checker.is_alive():
+            #    raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
 
 
     except KeyboardInterrupt:
@@ -168,9 +177,9 @@ def main(url_list, debug_mode=False, show_latency=True, show_fps=True,
     finally:  # 리소스 정리
         exit_code = 0
         try:
-            if yolox_process:  # yolox 프로세스 종료
-                yolox_process.terminate()
-                yolox_process.join(timeout=5.0)
+            #if yolox_process:  # yolox 프로세스 종료
+            #    yolox_process.terminate()
+            #    yolox_process.join(timeout=5.0)
 
             if stream_instance_dict:  # 입력스트림 종료
                 for name, instance in stream_instance_dict.items():
