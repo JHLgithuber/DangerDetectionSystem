@@ -1,5 +1,110 @@
 import math
 
+import math
+import numpy as np
+
+def detect_fall_static_spine_angle(lm2d_list, torso_thresh=50):
+    """
+    척추 기울기 기반 낙상 감지
+
+    원리:
+        - 좌우 어깨의 중간점과 좌우 골반의 중간점을 이은 벡터(척추)의 기울기를 계산함
+        - 해당 벡터가 수직(y축)과 이루는 각도가 일정 기준 이상이면, 넘어졌다고 판단
+
+    민감도 조정 방법:
+        - torso_thresh 값을 낮추면 더 작은 기울기에서도 낙상으로 판단하므로 민감도가 높아짐
+
+    Args:
+        lm2d_list (list): (17,2) 형태의 랜드마크 리스트
+        torso_thresh (float): 기울기 각도 임계값 (deg)
+
+    Returns:
+        tuple(bool, float): 낙상 여부, 기울기 각도
+    """
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    left_hip = lm2d_list[11]
+    right_hip = lm2d_list[12]
+
+    mid_shoulder = [(left_shoulder[0] + right_shoulder[0]) / 2,
+                    (left_shoulder[1] + right_shoulder[1]) / 2]
+    mid_hip = [(left_hip[0] + right_hip[0]) / 2,
+               (left_hip[1] + right_hip[1]) / 2]
+
+    vec = [mid_hip[0] - mid_shoulder[0], mid_hip[1] - mid_shoulder[1]]
+    dot = vec[1] / (math.hypot(vec[0], vec[1]) + 1e-6)
+    angle = math.degrees(math.acos(max(min(dot, 1), -1)))
+    return angle > torso_thresh, angle
+
+
+def detect_fall_static_shoulder_hip_diff(lm2d_list, diff_thresh=0.18):
+    """
+    어깨/엉덩이 높이 차이 기반 낙상 감지
+
+    원리:
+        - 사람은 넘어지면 한쪽이 더 낮아지는 비대칭 자세를 취함
+        - 좌우 어깨나 엉덩이의 높이 차이가 일정 이상이면 낙상으로 판단
+
+    민감도 조정 방법:
+        - diff_thresh 값을 낮추면 작은 비대칭에도 민감하게 반응
+
+    Returns:
+        tuple(bool, tuple): 낙상 여부, (어깨 높이차, 엉덩이 높이차)
+    """
+    shoulder_y_diff = abs(lm2d_list[5][1] - lm2d_list[6][1])
+    hip_y_diff = abs(lm2d_list[11][1] - lm2d_list[12][1])
+    return (shoulder_y_diff > diff_thresh or hip_y_diff > diff_thresh), (shoulder_y_diff, hip_y_diff)
+
+def detect_fall_static_recline_ratio(lm2d_list, min_recline_ratio=0.9):
+    """
+    세로/가로 비율 기반 낙상 감지
+
+    원리:
+        - 사람이 서 있을 땐 세로로 길고, 누우면 가로로 퍼진다
+        - 어깨~발 길이 / 어깨 간 거리 비율이 작으면 낙상으로 판단
+
+    민감도 조정 방법:
+        - min_recline_ratio 값을 높이면 더 많은 자세가 낙상으로 간주됨
+
+    Returns:
+        tuple(bool, float): 낙상 여부, 세로:가로 비율
+    """
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    left_ankle = lm2d_list[15]
+    right_ankle = lm2d_list[16]
+
+    width = abs(right_shoulder[0] - left_shoulder[0])
+    height = abs((right_shoulder[1] - right_ankle[1] + left_shoulder[1] - left_ankle[1]) / 2.0)
+
+    ratio = height / (width + 1e-6)
+    return ratio < min_recline_ratio, ratio
+
+def detect_fall_static_joint_bbox_ratio(lm2d_list, max_ratio=2.0):
+    """
+    전체 관절의 바운딩 박스 비율 기반 낙상 감지 (팔 제외)
+
+    원리:
+        - 팔(팔꿈치, 손목)을 제외한 주요 관절만으로 바운딩 박스를 생성
+        - 누운 자세일수록 세로 길이가 짧아지고 가로로 퍼짐 → 비율 작아짐
+
+    민감도 조정 방법:
+        - max_ratio 값을 높이면 더 많은 가로 자세를 낙상으로 판단함
+
+    Returns:
+        tuple(bool, float): 낙상 여부, 바운딩 박스 세로:가로 비율
+    """
+    # 제외할 인덱스: 양팔 팔꿈치(7,8), 손목(9,10)
+    exclude_indices = {7, 8, 9, 10}
+    points = [pt for i, pt in enumerate(lm2d_list) if i not in exclude_indices]
+
+    xs = [pt[0] for pt in points]
+    ys = [pt[1] for pt in points]
+    w = max(xs) - min(xs)
+    h = max(ys) - min(ys)
+    ratio = h / (w + 1e-6)
+    return ratio < max_ratio, ratio
+
 
 def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=50, leg_thresh=50, debug=False, ):
     """
@@ -81,7 +186,7 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
 
 
 # noinspection PyUnusedLocal
-def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
+def detect_fall_recline(lm2d_list, min_recline_ratio=2.0, debug=False):
     """
     신체 세로:가로 비율이 낮으면 누운 상태로 판정
     min_recline_ratio는 영상에서 보이는 정상적인 신체비율로 설정, 폭 대비 키가 짧아져 보이면 트리거
@@ -118,69 +223,6 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=1.1, debug=False):
 
     return is_fallen, fallen_reason
 
-
-# noinspection PyUnusedLocal
-def detect_fall_normalized(lm2d_list):
-    """
-    정규화 좌표 기반 낙상 감지 (척추 각도, 비율, 좌우 비대칭 포함)
-
-    Args:
-        lm2d_list (list): Mediapipe 2D 랜드마크 리스트
-
-    Returns:
-        tuple:
-            - is_fall_final (bool): 낙상 판단 결과
-            - reason (None): 설명 문자열 (미구현, None 반환)
-    """
-    # 2D 정규화 좌표 기반 으로 모든 계산
-    left_shoulder = lm2d_list[5]
-    right_shoulder = lm2d_list[6]
-    left_hip = lm2d_list[11]
-    right_hip = lm2d_list[12]
-    left_knee = lm2d_list[13]
-    right_knee = lm2d_list[14]
-    left_ankle = lm2d_list[15]
-    right_ankle = lm2d_list[16]
-
-
-    # 중앙점 계산 (정규화 좌표)
-    mid_shoulder_x = (left_shoulder[0] + right_shoulder[0]) / 2.0
-    mid_shoulder_y = (left_shoulder[1] + right_shoulder[1]) / 2.0
-    mid_hip_x = (left_hip[0] + right_hip[0]) / 2.0
-    mid_hip_y = (left_hip[1] + right_hip[1]) / 2.0
-    mid_knee_x = (left_knee[0] + right_knee[0]) / 2.0
-    mid_knee_y = (left_knee[1] + right_knee[1]) / 2.0
-    mid_ankle_x = (left_ankle[0] + right_ankle[0]) / 2.0
-    mid_ankle_y = (left_ankle[1] + right_ankle[1]) / 2.0
-
-    # 척추 벡터 및 길이 (정규화)
-    spine_vec_x = mid_hip_x - mid_shoulder_x
-    spine_vec_y = mid_hip_y - mid_shoulder_y
-    spine_length = (spine_vec_x ** 2 + spine_vec_y ** 2) ** 0.5
-
-    # 허리 폭 (정규화)
-    waist_vec_x = right_hip[0] - left_hip[0]
-    waist_vec_y = right_hip[1] - left_hip[1]
-    waist_width = (waist_vec_x ** 2 + waist_vec_y ** 2) ** 0.5
-
-    # 척추 대 허리 비율
-    spine_ratio = spine_length / waist_width if waist_width > 1e-6 else float('inf')
-
-    # 척추 각도 (정규화 좌표 에서도 방식 동일)
-    dot = spine_vec_y / (spine_length + 1e-6)  # 중력방향이 (0,1)이라서
-    dot = max(min(dot, 1), -1)
-    spine_angle_deg = math.degrees(math.acos(dot))
-
-    # 좌우 어깨/엉덩이 높이 차이(정규화)
-    shoulder_y_diff = abs(left_shoulder[1] - right_shoulder[1])
-    hip_y_diff = abs(left_hip[1] - right_hip[1])
-
-    # 임계값은 정규화 단위(대략 0.18~0.2, 실험적으로 조정)
-    is_side_fall = (shoulder_y_diff > 0.18) or (hip_y_diff > 0.18)
-    is_fall = (spine_angle_deg > 50) or (spine_ratio < 1.2)
-    is_fall_final = is_fall or is_side_fall
-
-    return is_fall_final, None
 
 
 def check_visibility_presence(conf_array, threshold=0.5):
@@ -228,19 +270,20 @@ def detect_fall(detection_result, conf, debug=False):
     if not check_visibility_presence(conf):
         return None
 
-    result_by_normalization = detect_fall_normalized(detection_result)
-    result_by_angle = detect_fall_angle(detection_result)
-    result_by_recline = detect_fall_recline(detection_result)
+    result_by_angle = detect_fall_static_spine_angle(detection_result)
+    result_by_recline = detect_fall_static_recline_ratio(detection_result)
+    result_by_bbox = detect_fall_static_joint_bbox_ratio(detection_result)
+    result_by_asymmetry = detect_fall_static_shoulder_hip_diff(detection_result)
 
     if result_by_angle[0]:
-        if debug: print(f"FALL DETECTED by angle: {result_by_angle[1]}")
+        if debug: print(f"FALL DETECTED by spine angle: {result_by_angle[1]}")
         return True
-    # elif result_by_recline[0]:
-    #     if debug: print(f"FALL DETECTED by recline: {result_by_recline[1]}")
-    #     return True
-    # elif result_by_normalization[0]:
-    #     if debug: print(f"FALL DETECTED by normalization: {result_by_normalization[1]}")
-    #     return True
+    elif result_by_bbox[0]:
+        if debug: print(f"FALL DETECTED by joint bbox ratio: {result_by_bbox[1]}")
+        return True
+    #elif result_by_asymmetry[0]:
+    #    if debug: print(f"FALL DETECTED by shoulder/hip asymmetry: {result_by_asymmetry[1]}")
+    #    return True
     else:
         if debug: print("FALL NOT DETECTED")
         return False
