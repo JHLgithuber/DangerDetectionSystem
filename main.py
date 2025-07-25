@@ -205,7 +205,7 @@ if __name__ == "__main__":
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
         # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
         # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
-        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
+         ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
         # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", "rtsp"),
