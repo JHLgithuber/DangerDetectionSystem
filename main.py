@@ -4,15 +4,13 @@ from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from multiprocessing.managers import SharedMemoryManager
 
 import falling_iou_checker
-import human_detector
-import pose_detector
 import stream_server as stream
+import yolo_pose_detector
 from demo_viewer import start_imshow_demo
 from stream_input import InputStream
-from yolox.exp import get_exp
-import yolo_pose_detector
 
-#TODO: sorter제거 후 프레임 안섞이게
+
+# TODO: sorter제거 후 프레임 안섞이게
 
 def get_args():
     hard_args = argparse.Namespace(
@@ -80,11 +78,12 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
         input_metadata_queue = Queue(maxsize=60 * stream_many)
         for name, url, is_file in url_list:
             print(f"name: {name}, url: {url}")
-            stream_instance_dict[name] = InputStream(source_path=url, metadata_queue=input_metadata_queue, stream_name=name,
+            stream_instance_dict[name] = InputStream(source_path=url, metadata_queue=input_metadata_queue,
+                                                     stream_name=name,
                                                      receive_frame=1, ignore_frame=0,
                                                      startup_max_frame_count=int(200 / logical_cores),
                                                      resize=(854, 480),
-                                                     #resize=None,
+                                                     # resize=None,
                                                      media_format=is_file, debug=debug_mode, startup_pass=False)
         print(f"stream_many: {stream_many}")
 
@@ -102,15 +101,17 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
         server_queue = None
         if web_viewer:
             server_queue = Queue(maxsize=3 * stream_many)
-            server_thread, consumer_thread= stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
+            server_thread, consumer_thread = stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=30 * stream_many)
-        #headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
-        #server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
-        #visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue, headless=not imshow_viewer,
-                                        show_latency=show_latency, show_fps=show_fps, visual=print_visual, debug=debug_mode)
+        # headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
+        # server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
+        # visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
+        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue,
+                                        headless=not imshow_viewer,
+                                        show_latency=show_latency, show_fps=show_fps, visual=print_visual,
+                                        debug=debug_mode)
 
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
@@ -120,7 +121,6 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                                                                 conf=0.3,
                                                                 max_batch_size=20,
                                                                 debug=debug_mode, )
-
 
         # Falling multi frame IoU Checker
         fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
@@ -200,7 +200,7 @@ if __name__ == "__main__":
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
         # ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
         # ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
-         ("LiveCamera_Windows", 0, "webcam_id"),
+        ("LiveCamera_Windows", 0, "webcam_id"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
         # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),

@@ -1,7 +1,5 @@
 import math
 
-import math
-import numpy as np
 
 def detect_fall_static_spine_angle(lm2d_list, torso_thresh=50):
     """
@@ -55,6 +53,7 @@ def detect_fall_static_shoulder_hip_diff(lm2d_list, diff_thresh=0.18):
     hip_y_diff = abs(lm2d_list[11][1] - lm2d_list[12][1])
     return (shoulder_y_diff > diff_thresh or hip_y_diff > diff_thresh), (shoulder_y_diff, hip_y_diff)
 
+
 def detect_fall_static_recline_ratio(lm2d_list, min_recline_ratio=0.9):
     """
     세로/가로 비율 기반 낙상 감지
@@ -79,6 +78,7 @@ def detect_fall_static_recline_ratio(lm2d_list, min_recline_ratio=0.9):
 
     ratio = height / (width + 1e-6)
     return ratio < min_recline_ratio, ratio
+
 
 def detect_fall_static_joint_bbox_ratio(lm2d_list, max_ratio=2.0):
     """
@@ -131,7 +131,6 @@ def detect_fall_angle(lm2d_list, torso_thresh=50, thigh_thresh=50, calf_thresh=5
     right_knee = lm2d_list[14]
     left_ankle = lm2d_list[15]
     right_ankle = lm2d_list[16]
-
 
     # 부위별 중앙점 계산
     mid_shoulder_x = (left_shoulder[0] + right_shoulder[0]) / 2
@@ -224,7 +223,6 @@ def detect_fall_recline(lm2d_list, min_recline_ratio=2.0, debug=False):
     return is_fallen, fallen_reason
 
 
-
 def check_visibility_presence(conf_array, threshold=0.5):
     """
     YOLOv11 포즈 키포인트 신뢰도 검사
@@ -247,6 +245,7 @@ def check_visibility_presence(conf_array, threshold=0.5):
         if conf_array[idx] < threshold:
             return False
     return True
+
 
 def detect_fall(detection_result, conf, debug=False):
     """
@@ -281,7 +280,7 @@ def detect_fall(detection_result, conf, debug=False):
     elif result_by_bbox[0]:
         if debug: print(f"FALL DETECTED by joint bbox ratio: {result_by_bbox[1]}")
         return True
-    #elif result_by_asymmetry[0]:
+    # elif result_by_asymmetry[0]:
     #    if debug: print(f"FALL DETECTED by shoulder/hip asymmetry: {result_by_asymmetry[1]}")
     #    return True
     else:

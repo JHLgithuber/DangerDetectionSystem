@@ -1,4 +1,3 @@
-import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -120,32 +119,33 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
 
 
 class FrameSequentialProcesser:
-    def __init__(self, processing_data_name:str, perf_counter_name="FrameSequential" ,debug=False):
+    def __init__(self, processing_data_name: str, perf_counter_name="FrameSequential", debug=False):
         self.__debug = debug
-        self.__metadata_dict=dict()
-        self.__processing_data_name=processing_data_name
-        #self.__lock = threading.Lock()
-        #self.__cond = threading.Condition(self.__lock)
-        self.__perf_counter_name = perf_counter_name+"_"
+        self.__metadata_dict = dict()
+        self.__processing_data_name = processing_data_name
+        # self.__lock = threading.Lock()
+        # self.__cond = threading.Condition(self.__lock)
+        self.__perf_counter_name = perf_counter_name + "_"
         if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} init")
 
-
-    def metadata_push(self,input_metadata:StreamFrameInstance):
-        input_metadata.sequence_perf_counter[self.__perf_counter_name+"start"]=time.perf_counter()
+    def metadata_push(self, input_metadata: StreamFrameInstance):
+        input_metadata.sequence_perf_counter[self.__perf_counter_name + "start"] = time.perf_counter()
         data_id = input_metadata.captured_time + hash(input_metadata.stream_name)
-        #with self.__cond:
-        self.__metadata_dict[data_id] = {"metadata" : input_metadata, "push_perf_counter" : time.perf_counter(), "processing" : False}
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_push {data_id}: {input_metadata}")
+        # with self.__cond:
+        self.__metadata_dict[data_id] = {"metadata": input_metadata, "push_perf_counter": time.perf_counter(),
+                                         "processing": False}
+        if self.__debug: print(
+            f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_push {data_id}: {input_metadata}")
         #    self.__cond.notify_all()
         return data_id
 
-    def metadata_pop(self, max_buf_time=30 , loop_wait_time=0.0001, blocking=False) -> StreamFrameInstance or None:
-        #with self.__cond:
+    def metadata_pop(self, max_buf_time=30, loop_wait_time=0.0001, blocking=False) -> StreamFrameInstance or None:
+        # with self.__cond:
         while True:
             # 1) 버퍼가 비어 있으면 대기
             if not self.__metadata_dict:
                 if blocking:
-                    #self.__cond.wait(loop_wait_time)
+                    # self.__cond.wait(loop_wait_time)
                     time.sleep(loop_wait_time)
                     continue
                 else:
@@ -158,64 +158,69 @@ class FrameSequentialProcesser:
                 self.__metadata_dict.pop(key)
                 if self.__debug:
                     print(f"[Warning] FrameSequentialProcesser {self.__processing_data_name} metadata_pop ignore {key}")
-                #self.__cond.notify_all()
+                # self.__cond.notify_all()
                 continue
 
             # 3) 값이 채워졌으면 꺼내서 반환
             if meta["processing"]:
                 output = self.__metadata_dict.pop(key)["metadata"]
-                output.sequence_perf_counter[self.__perf_counter_name+"end"]=time.perf_counter()
+                output.sequence_perf_counter[self.__perf_counter_name + "end"] = time.perf_counter()
                 if self.__debug:
-                    print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_pop {key}: {output}")
-                #self.__cond.notify_all()
+                    print(
+                        f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} metadata_pop {key}: {output}")
+                # self.__cond.notify_all()
                 return output
 
             if blocking:
                 pass
                 # 4) 값이 아직 없으면 대기
-                #self.__cond.wait(loop_wait_time)
+                # self.__cond.wait(loop_wait_time)
             else:
                 return None
 
-    def processing_value_input(self, data_id:int, value) -> None:
-        #with self.__cond:
+    def processing_value_input(self, data_id: int, value) -> None:
+        # with self.__cond:
         try:
             setattr(self.__metadata_dict[data_id]["metadata"], self.__processing_data_name, value)
             self.__metadata_dict[data_id]["processing"] = True
             if self.__debug:
-                print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} processing_value_input {data_id} ← {value}")
+                print(
+                    f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} processing_value_input {data_id} ← {value}")
         except KeyError:
             print(f"[ERROR] FrameSequentialProcesser {self.__processing_data_name} processing_value_input KEY ERROR")
         finally:
             pass
             # 값이 채워졌으니 pop 대기 깨우기
-            #self.__cond.notify_all()
+            # self.__cond.notify_all()
 
-    def data_id_in_buffer(self,data_id:int) -> bool:
-        #with self.__cond:
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} data_id_in_buffer {data_id} in buffer: {data_id in self.__metadata_dict}")
-        #self.__cond.notify_all()
+    def data_id_in_buffer(self, data_id: int) -> bool:
+        # with self.__cond:
+        if self.__debug: print(
+            f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} data_id_in_buffer {data_id} in buffer: {data_id in self.__metadata_dict}")
+        # self.__cond.notify_all()
         return data_id in self.__metadata_dict
 
     def is_buffer_empty(self) -> bool:
-        #with self.__cond:
+        # with self.__cond:
         if not self.__metadata_dict:
-            status= True
+            status = True
         else:
-            status= False
-        if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_buffer_empty: {status}")
-        #self.__cond.notify_all()
+            status = False
+        if self.__debug: print(
+            f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_buffer_empty: {status}")
+        # self.__cond.notify_all()
         return status
 
     def is_oldest_finsh(self) -> bool:
-        #with self.__cond:
+        # with self.__cond:
         if self.is_buffer_empty():
-            #self.__cond.notify_all()
+            # self.__cond.notify_all()
             return False
         else:
             key, meta = next(iter(self.__metadata_dict.items()))
-            if self.__debug: print(f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_oldest_finsh oldest_finsh: {meta['processing']}")
-            #self.__cond.notify_all()
+            if self.__debug: print(
+                f"[DEBUG] FrameSequentialProcesser {self.__processing_data_name} is_oldest_finsh oldest_finsh: {meta['processing']}")
+            # self.__cond.notify_all()
             return meta["processing"]
 
 
