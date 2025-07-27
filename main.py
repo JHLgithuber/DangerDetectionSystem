@@ -60,17 +60,16 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
     frame_smm_mgr = SharedMemoryManager()
     frame_smm_mgr.start()
     stream_instance_dict = dict()
-    yolox_process = None
-    pose_process = None
+    pose_processes = None
     server_thread = None
     consumer_thread = None
 
     try:
         # 프로세스 코어수 연동
-        logical_cores = cpu_count()
-        yolox_cores = min(max(int(logical_cores // 3.5), 2), 6)
-        mp_cores = max(int(logical_cores - yolox_cores - 5), 2)
-        print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
+        #logical_cores = cpu_count()
+        #yolox_cores = min(max(int(logical_cores // 3.5), 2), 6)
+        #mp_cores = max(int(logical_cores - yolox_cores - 5), 2)
+        #print(f"logical_cores: {logical_cores}, yolox_cores: {yolox_cores}, mp_cores: {mp_cores}")
 
         stream_many = len(url_list)
 
@@ -81,7 +80,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
             stream_instance_dict[name] = InputStream(source_path=url, metadata_queue=input_metadata_queue,
                                                      stream_name=name,
                                                      receive_frame=1, ignore_frame=0,
-                                                     startup_max_frame_count=int(200 / logical_cores),
+                                                     #startup_max_frame_count=int(200 / logical_cores),
                                                      resize=(854, 480),
                                                      # resize=None,
                                                      media_format=is_file, debug=debug_mode, startup_pass=False)
@@ -115,11 +114,12 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
 
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
-        pose_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.pt",
+        pose_processes = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
                                                                 input_q=input_metadata_queue,
                                                                 output_q=after_pose_estimation_queue,
                                                                 conf=0.3,
                                                                 max_batch_size=20,
+                                                                worker_num=3,
                                                                 debug=debug_mode, )
 
         # Falling multi frame IoU Checker
@@ -144,7 +144,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
             # Watch Dog
             if not demo_thread.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
-            if not pose_process.is_alive():
+            if not all(proc.is_alive() for proc in pose_processes):
                 raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
             if not fall_checker.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
@@ -166,9 +166,12 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                     thread.join(timeout=5.0)
                     print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
 
-            if pose_process:  # 포즈 추정 프로세스 종료
-                pose_process.terminate()
-                pose_process.join(timeout=5.0)
+            if pose_processes:
+                for proc in pose_processes:
+                    if proc.is_alive():
+                        proc.terminate()
+                for proc in pose_processes:
+                    proc.join(timeout=5.0)
 
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
@@ -198,14 +201,14 @@ if __name__ == "__main__":
         # ("Image_2", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_49_16.png", "file"),
         # ("Image_3", "data_for_test/pose_demo_3p.png", "file"),
         # ("Image_4", "data_for_test/ChatGPT Image 2025년 5월 19일 오전 12_53_01.png", "file"),
-        # ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
-        # ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
-        ("LiveCamera_Windows", 0, "webcam_id"),
+         ("CameraVidio_1", "data_for_test/WIN_20250520_18_53_11_Pro.mp4", "file"),
+         ("CameraVidio_2", "data_for_test/WIN_20250612_09_07_36_Pro.mp4", "file"),
+        # ("LiveCamera_Windows", 0, "webcam_id"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
         # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
         # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
-         ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
+        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
         # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
         # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", "rtsp"),

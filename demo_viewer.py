@@ -298,7 +298,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
         while True:
             instances_per_frame_instance = stream_queue_for_process.get()
-            instances_per_frame_instance.sequence_perf_counter["viewer_after_sorter"] = time.perf_counter()
+            instances_per_frame_instance.sequence_perf_counter["viewer_before_visual"] = time.perf_counter()
             if debug:
                 print(f"[DEBUG] {stream_name} instances_per_frame_instance is {instances_per_frame_instance}")
 

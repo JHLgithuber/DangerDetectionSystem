@@ -10,15 +10,19 @@ import cv2
 
 import cv2
 
-def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=50, debug=False):
-    yolo_pose_process = Process(
-        name=f"yolo_pose_worker",
-        target=yolo_pose_worker,
-        args=(input_q, output_q, model_path, conf, max_batch_size, debug,),
-    )
-    yolo_pose_process.daemon=True
-    yolo_pose_process.start()
-    return yolo_pose_process
+def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=50, worker_num=2, debug=False):
+    yolo_pose_processes=list()
+    for i in range(worker_num):
+        yolo_pose_process = Process(
+            name=f"yolo_pose_worker",
+            target=yolo_pose_worker,
+            args=(input_q, output_q, model_path, conf, max_batch_size, debug,),
+        )
+        yolo_pose_process.daemon=True
+        yolo_pose_process.start()
+        yolo_pose_processes.append(yolo_pose_process)
+        if debug: print(f"[DEBUG] yolo_pose_process {i} started")
+    return yolo_pose_processes
 
 def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug, plot=False,):
     detector=YOLOPoseDetector(model_path=model_path, conf=conf)
@@ -62,9 +66,14 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
                     stream_frame_instance.sequence_perf_counter["yolo_pose_end"] = time.perf_counter()
                     output_q.put(stream_frame_instance)
 
+            time.sleep(0.0001)
+
         except Empty:
             continue  # input_q에 아무것도 없으면 다음 루프
 
+        except KeyboardInterrupt:
+            print(f"[yolo_pose_worker] {current_process().name} is ended by KeyboardInterrupt")
+            raise KeyboardInterrupt
         except Exception as e:
             print(f"[yolo_pose_worker ERROR] {e}")
 
@@ -77,9 +86,8 @@ class YOLOPoseDetector:
         self.debug = debug
 
         self.model = YOLO(model_path)
-        self.model.fuse()
 
     def run_inference(self, frames):
-        return self.model(frames, conf=self.conf)
+        return self.model(frames, conf=self.conf, half=True, stream=True)
 
 

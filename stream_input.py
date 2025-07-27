@@ -144,17 +144,17 @@ class InputStream:
         return self.stream_thread
 
     def _once_stream(self):
-        start_idx = self._send_startup_dummy()
+        #start_idx = self._send_startup_dummy()
         cap = self.__cv2_capture()
         gen = self._frame_generator(cap)
-        self._process_loop(gen, start_idx)
+        self._process_loop(gen)
 
     def _loop_stream(self):
-        start_idx = self._send_startup_dummy()
+        #start_idx = self._send_startup_dummy()
         while self.running:
             cap = self.__cv2_capture()
             gen = self._frame_generator(cap)
-            self._process_loop(gen, start_idx)
+            self._process_loop(gen)
             if self.running and self.debug:
                 print("[INFO] Reopening stream...")
 
@@ -170,7 +170,7 @@ class InputStream:
             cap = cv2.VideoCapture(self.source_path)
         return cap
 
-    def _process_loop(self, frame_iter, start_idx):
+    def _process_loop(self, frame_iter, start_idx=0):
         idx = start_idx
         bypassed = 0
         received = self.receive_frame
