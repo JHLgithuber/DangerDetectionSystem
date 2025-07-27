@@ -61,6 +61,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
     frame_smm_mgr.start()
     stream_instance_dict = dict()
     pose_processes = None
+    manager_process = None
     server_thread = None
     consumer_thread = None
 
@@ -114,7 +115,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
 
         # Pose Estimation
         after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
-        pose_processes = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
+        pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
                                                                 input_q=input_metadata_queue,
                                                                 output_q=after_pose_estimation_queue,
                                                                 conf=0.3,
@@ -146,6 +147,8 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             if not all(proc.is_alive() for proc in pose_processes):
                 raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
+            if not manager_process.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] manager process is dead")
             if not fall_checker.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
 
@@ -172,6 +175,10 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                         proc.terminate()
                 for proc in pose_processes:
                     proc.join(timeout=5.0)
+
+            if manager_process and manager_process.is_alive():
+                manager_process.terminate()
+                manager_process.join(timeout=5.0)
 
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()

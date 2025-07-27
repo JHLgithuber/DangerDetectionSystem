@@ -1,4 +1,5 @@
 import time
+import traceback
 from queue import Empty
 import cv2
 from multiprocessing import Process, current_process, Queue
@@ -12,17 +13,71 @@ import cv2
 
 def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=50, worker_num=2, debug=False):
     yolo_pose_processes=list()
+    round_robin_input_queues=list()
+    round_robin_output_queues=list()
     for i in range(worker_num):
+        round_robin_input_queue = Queue(maxsize=worker_num)
+        round_robin_output_queue = Queue(maxsize=worker_num)
         yolo_pose_process = Process(
             name=f"yolo_pose_worker",
             target=yolo_pose_worker,
-            args=(input_q, output_q, model_path, conf, max_batch_size, debug,),
+            args=(round_robin_input_queue, round_robin_output_queue, model_path, conf, max_batch_size, debug,),
         )
         yolo_pose_process.daemon=True
         yolo_pose_process.start()
         yolo_pose_processes.append(yolo_pose_process)
+        round_robin_input_queues.append(round_robin_input_queue)
+        round_robin_output_queues.append(round_robin_output_queue)
         if debug: print(f"[DEBUG] yolo_pose_process {i} started")
-    return yolo_pose_processes
+
+    yolo_pose_round_robin_process = Process(
+        name=f"yolo_pose_round_robin_worker",
+        target=yolo_pose_round_robin_worker,
+        args=(input_q, output_q, round_robin_input_queues, round_robin_output_queues),
+    )
+    yolo_pose_round_robin_process.daemon=True
+    yolo_pose_round_robin_process.start()
+    if debug: print(f"[DEBUG] yolo_pose_round_robin_process started")
+    return yolo_pose_processes, yolo_pose_round_robin_process
+
+
+def yolo_pose_round_robin_worker(input_q,output_q,round_robin_input_queues,round_robin_output_queues):
+    input_queue_index=0
+    output_queue_index=0
+    try:
+        while True:
+            #if not workers[input_queue_index].is_alive():
+            #    raise Exception(f"[yolo_pose_round_robin_worker] worker {input_queue_index} is dead")
+
+            if not input_q.empty():
+                input_data=input_q.get()
+                round_robin_input_queues[input_queue_index].put(input_data)
+                input_queue_index=(input_queue_index+1)%len(round_robin_input_queues)
+
+
+            try:
+                output_data=round_robin_output_queues[output_queue_index].get_nowait()
+                output_q.put(output_data)
+            except Empty:
+                continue
+            finally:
+                output_queue_index=(output_queue_index+1)%len(round_robin_output_queues)
+
+    except KeyboardInterrupt:
+        print(f"[yolo_pose_round_robin_worker] {current_process().name} is ended by KeyboardInterrupt")
+        raise KeyboardInterrupt
+    except Exception as e:
+        print(f"[yolo_pose_round_robin_worker ERROR] {e}")
+        traceback.print_exc()
+        raise e
+    #finally:
+    #    for q in round_robin_input_queues: q.close()
+    #    for q in round_robin_output_queues: q.close()
+    #    for w in workers: w.terminate()
+
+
+
+
 
 def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug, plot=False,):
     detector=YOLOPoseDetector(model_path=model_path, conf=conf)
@@ -64,6 +119,8 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
                     stream_frame_instance.pose_detection_numpy = result.keypoints.xy.cpu().numpy()
                     stream_frame_instance.pose_detection_conf = result.keypoints.conf.cpu().numpy()
                     stream_frame_instance.sequence_perf_counter["yolo_pose_end"] = time.perf_counter()
+                    if output_q.full():
+                        output_q.get()
                     output_q.put(stream_frame_instance)
 
             time.sleep(0.0001)
