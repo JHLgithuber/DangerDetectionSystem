@@ -3,14 +3,6 @@ from multiprocessing.managers import SharedMemoryManager
 
 import cv2
 import numpy as np
-import falling_iou_checker
-import yolo_pose_detector
-from demo_viewer import start_imshow_demo
-import time
-from multiprocessing.managers import SharedMemoryManager
-
-import cv2
-import numpy as np
 
 import falling_iou_checker
 import yolo_pose_detector
@@ -37,7 +29,7 @@ def _output_stream_classifier(output_queue, classified_queues, sources):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode = True):
+def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=True):
     """
     :param overlay_output:
     :param sources: 스트림 주소나 cam_id
@@ -57,7 +49,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode = 
     raw_cv2_frame_input_queues = dict()
     stream_instance_dict = dict()
     for i, src in enumerate(sources):
-        src=str(src)
+        src = str(src)
         print(f"name: {src}, url: {src}")
         raw_cv2_frame_input_queues[src] = Queue(maxsize=5)
         stream_instance_dict[src] = InputStream(source_path=raw_cv2_frame_input_queues[src],
@@ -84,14 +76,13 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode = 
         shm_objs_dict[name] = shm_objs
         shm_names_dict[name] = shm_name
 
-
-
     classified_queues = dict()
     not_classified_queue = Queue(maxsize=5)
     for src in sources:
         classified_queues[str(src)] = Queue(maxsize=5)
     from threading import Thread
-    classified_thread=Thread(target=_output_stream_classifier, args=(not_classified_queue, classified_queues, sources))
+    classified_thread = Thread(target=_output_stream_classifier,
+                               args=(not_classified_queue, classified_queues, sources))
 
     # 출력 스트림 설정
     output_metadata_queue = Queue(maxsize=30 * stream_many)
@@ -102,8 +93,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode = 
                                      server_queue=not_classified_queue,
                                      headless=True,
                                      show_latency=True, show_fps=True, visual=True,
-                                     overlay= overlay_output, debug=debug_mode)
-
+                                     overlay=overlay_output, debug=debug_mode)
 
     # Pose Estimation
     after_pose_estimation_queue = Queue(maxsize=70 * stream_many)

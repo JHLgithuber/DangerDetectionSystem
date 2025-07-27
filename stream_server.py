@@ -1,7 +1,7 @@
-import cv2
 import threading
 import time
 
+import cv2
 from flask import Flask, Response
 
 app = Flask(__name__)
@@ -21,7 +21,7 @@ def run_stream_server(queue, host='0.0.0.0', port=5000):
             except Exception as e:
                 print("Queue error:", e)
 
-    consumer= threading.Thread(target=queue_consumer, daemon=True).start()
+    consumer = threading.Thread(target=queue_consumer, daemon=True).start()
 
     def flask_thread():
         try:
@@ -30,7 +30,7 @@ def run_stream_server(queue, host='0.0.0.0', port=5000):
         except KeyboardInterrupt:
             print("[INFO] Shutting down server...")
 
-    server= threading.Thread(target=flask_thread, daemon=True).start()
+    server = threading.Thread(target=flask_thread, daemon=True).start()
     return server, consumer,
 
 

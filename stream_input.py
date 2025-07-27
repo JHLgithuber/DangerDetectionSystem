@@ -1,6 +1,7 @@
 import time
 import uuid
 from threading import Thread
+
 import cv2
 import numpy as np
 
@@ -15,19 +16,19 @@ class InputStream:
     """
 
     def __init__(
-        self,
-        source_path,
-        metadata_queue,
-        stream_name=None,
-        bypass_frame=0,
-        receive_frame=1,
-        ignore_frame=0,
-        startup_max_frame_count=60,
-        debug=False,
-        media_format="rtsp",
-        file_fps=None,
-        resize=None,
-        startup_pass=False,
+            self,
+            source_path,
+            metadata_queue,
+            stream_name=None,
+            bypass_frame=0,
+            receive_frame=1,
+            ignore_frame=0,
+            startup_max_frame_count=60,
+            debug=False,
+            media_format="rtsp",
+            file_fps=None,
+            resize=None,
+            startup_pass=False,
     ):
         # 외부 파라미터와 내부 필드 매핑
         self.source_path = source_path
@@ -61,7 +62,7 @@ class InputStream:
     def _get_initial_frame(self):
         try:
             if self.media_format == "cv2_frame":
-                img= self.source_path.get()
+                img = self.source_path.get()
                 ret = True
             else:
                 cap = self.__cv2_capture()
@@ -97,8 +98,6 @@ class InputStream:
                 break
             yield frame
 
-
-
     def _enqueue(self, instance):
         if self.metadata_queue.full():
             try:
@@ -117,7 +116,7 @@ class InputStream:
                 frame = cv2.resize(frame, self.resize)
             cv2.putText(
                 frame,
-                f"Loading {i+1}/{self.startup_dummy_count}",
+                f"Loading {i + 1}/{self.startup_dummy_count}",
                 (50, 100),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1.5,
@@ -154,20 +153,19 @@ class InputStream:
         return self.stream_thread
 
     def _once_stream(self):
-        #start_idx = self._send_startup_dummy()
+        # start_idx = self._send_startup_dummy()
         cap = self.__cv2_capture()
         gen = self._frame_generator(cap)
         self._process_loop(gen)
 
     def _loop_stream(self):
-        #start_idx = self._send_startup_dummy()
+        # start_idx = self._send_startup_dummy()
         while self.running:
             cap = self.__cv2_capture()
             gen = self._frame_generator(cap)
             self._process_loop(gen)
             if self.running and self.debug:
                 print("[INFO] Reopening stream...")
-
 
     def __cv2_capture(self):
         if self.media_format == "rtsp":
@@ -177,7 +175,7 @@ class InputStream:
         elif self.media_format == "webcam_id":
             cap = cv2.VideoCapture(int(self.source_path))
         elif self.media_format == "cv2_frame":
-            cap = None    #커스텀 제너레이터 형태
+            cap = None  # 커스텀 제너레이터 형태
         else:
             cap = cv2.VideoCapture(self.source_path)
         return cap

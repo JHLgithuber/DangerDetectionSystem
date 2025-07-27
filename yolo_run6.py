@@ -1,5 +1,7 @@
-from ultralytics import YOLO
 import cv2
+
+from ultralytics import YOLO
+
 
 class YOLOWorldTRT:
     def __init__(self, engine_path):
@@ -9,9 +11,11 @@ class YOLOWorldTRT:
     def infer(self, image, conf=0.7):
         results = self.model.predict(source=image, conf=conf, verbose=False)
         if results:
-            return results[0].boxes.xyxy.cpu().numpy(), results[0].boxes.conf.cpu().numpy(), results[0].boxes.cls.cpu().numpy()
+            return results[0].boxes.xyxy.cpu().numpy(), results[0].boxes.conf.cpu().numpy(), results[
+                0].boxes.cls.cpu().numpy()
         else:
             return [], [], []
+
 
 def run_yolo_and_track(image, yolox_model, tracked_list, conf=0.7, nms=0.7):
     boxes, confs, class_ids = yolox_model.infer(image, conf=conf)

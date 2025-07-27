@@ -16,15 +16,16 @@ Update 2025‑07‑16 (#4):
   • Added safeguards against clicks when no camera is selected.
 """
 
-import sys
 import math
-from multiprocessing.managers import SharedMemoryManager
+import sys
+import time
+from multiprocessing import Manager, Process, freeze_support
+from typing import Optional
 
 import cv2
-import multiprocessing
-import fall_detection_adapt_layer
 import numpy as np
-from typing import Optional
+from PyQt5.QtCore import Qt, QTimer, QPoint
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -39,14 +40,13 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QMessageBox,
 )
-from PyQt5.QtCore import Qt, QTimer, QPoint
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen
-from multiprocessing import Manager, Process, freeze_support
+
+import fall_detection_adapt_layer
 from yolo_run6 import YOLOWorldTRT, run_yolo_and_track
-import time
+
 
 def camera_process(source, cam_id, queue, flags, io_queue):
-    #yolox_model = YOLOX_TRT(engine_path="E:/YOLOX/yolox_custom.engine")
+    # yolox_model = YOLOX_TRT(engine_path="E:/YOLOX/yolox_custom.engine")
     yolo_model = YOLOWorldTRT(engine_path="E:/yoloworld/yolov8x-worldv2.engine")
 
     cap = cv2.VideoCapture(source)
@@ -65,7 +65,7 @@ def camera_process(source, cam_id, queue, flags, io_queue):
         # 프레임 복사 (필요 시 AI용으로 별도 복사)
         processed_frame = frame.copy()
 
-        #낙상감지용 프레임 복사
+        # 낙상감지용 프레임 복사
         behavior_frame = frame.copy()
 
         current_behavior = flags[cam_id].get("behavior", False)
@@ -103,8 +103,6 @@ def camera_process(source, cam_id, queue, flags, io_queue):
                 frame=behavior_frame,
                 pre_processed_frame=processed_frame
             )
-
-
 
         # 처리된 프레임 전달
         queue.put((cam_id, processed_frame, None))
@@ -204,6 +202,7 @@ class CameraWidget(QWidget):
         self._points.clear()
         self._polygon_fixed = False
 
+
 # -------------------------------
 # NVRGUI with unified control & selection
 # -------------------------------
@@ -241,10 +240,10 @@ class NVRGUI(QWidget):
         self.alerts.setPlaceholderText("위험행동 / 안전위험 알림...")
 
         # unified buttons
-        self.btn_area   = QPushButton("영역 설정")
-        self.btn_undo   = QPushButton("되돌리기")
-        self.btn_done   = QPushButton("설정 완료")
-        self.btn_clear  = QPushButton("영역 삭제")
+        self.btn_area = QPushButton("영역 설정")
+        self.btn_undo = QPushButton("되돌리기")
+        self.btn_done = QPushButton("설정 완료")
+        self.btn_clear = QPushButton("영역 삭제")
         self.btn_area.clicked.connect(self._toggle_area_mode)
         self.btn_undo.clicked.connect(self._undo_point)
         self.btn_done.clicked.connect(self._fix_poly)
@@ -322,6 +321,7 @@ class NVRGUI(QWidget):
             if msg is not None:
                 self.alerts.append(msg)
 
+
 # -------------------------------
 # Main launcher (unchanged AI workers)
 # -------------------------------
@@ -343,12 +343,12 @@ def run():
         p.start()
         procs.append(p)
 
-
     app = QApplication(sys.argv)
     gui = NVRGUI(sources, queue, shared_flags)
     gui.resize(1200, 800)
     gui.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     freeze_support()

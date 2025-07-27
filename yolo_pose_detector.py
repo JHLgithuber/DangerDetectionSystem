@@ -1,20 +1,18 @@
 import time
 import traceback
-from queue import Empty
-import cv2
 from multiprocessing import Process, current_process, Queue
-from ultralytics import YOLO
+from queue import Empty
+
+import cv2
+
 import dataclass_for_StreamFrameInstance
+from ultralytics import YOLO
 
-
-import cv2
-
-import cv2
 
 def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_size=50, worker_num=2, debug=False):
-    yolo_pose_processes=list()
-    round_robin_input_queues=list()
-    round_robin_output_queues=list()
+    yolo_pose_processes = list()
+    round_robin_input_queues = list()
+    round_robin_output_queues = list()
     for i in range(worker_num):
         round_robin_input_queue = Queue(maxsize=worker_num)
         round_robin_output_queue = Queue(maxsize=worker_num)
@@ -23,7 +21,7 @@ def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_siz
             target=yolo_pose_worker,
             args=(round_robin_input_queue, round_robin_output_queue, model_path, conf, max_batch_size, debug,),
         )
-        yolo_pose_process.daemon=True
+        yolo_pose_process.daemon = True
         yolo_pose_process.start()
         yolo_pose_processes.append(yolo_pose_process)
         round_robin_input_queues.append(round_robin_input_queue)
@@ -35,29 +33,29 @@ def run_yolo_pose_process(model_path, input_q, output_q, conf=0.3, max_batch_siz
         target=yolo_pose_round_robin_worker,
         args=(input_q, output_q, round_robin_input_queues, round_robin_output_queues),
     )
-    yolo_pose_round_robin_process.daemon=True
+    yolo_pose_round_robin_process.daemon = True
     yolo_pose_round_robin_process.start()
     if debug: print(f"[DEBUG] yolo_pose_round_robin_process started")
     return yolo_pose_processes, yolo_pose_round_robin_process
 
 
-def yolo_pose_round_robin_worker(input_q,output_q,round_robin_input_queues,round_robin_output_queues):
-    input_queue_index=0
-    output_queue_index=0
+def yolo_pose_round_robin_worker(input_q, output_q, round_robin_input_queues, round_robin_output_queues):
+    input_queue_index = 0
+    output_queue_index = 0
     try:
         while True:
             if not input_q.empty():
-                input_data=input_q.get()
+                input_data = input_q.get()
                 round_robin_input_queues[input_queue_index].put(input_data)
-                input_queue_index=(input_queue_index+1)%len(round_robin_input_queues)
+                input_queue_index = (input_queue_index + 1) % len(round_robin_input_queues)
 
             try:
-                output_data=round_robin_output_queues[output_queue_index].get_nowait()
+                output_data = round_robin_output_queues[output_queue_index].get_nowait()
                 output_q.put(output_data)
             except Empty:
                 continue
             finally:
-                output_queue_index=(output_queue_index+1)%len(round_robin_output_queues)
+                output_queue_index = (output_queue_index + 1) % len(round_robin_output_queues)
 
     except KeyboardInterrupt:
         print(f"[yolo_pose_round_robin_worker] {current_process().name} is ended by KeyboardInterrupt")
@@ -68,14 +66,10 @@ def yolo_pose_round_robin_worker(input_q,output_q,round_robin_input_queues,round
         raise e
 
 
-
-
-
-
-def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug, plot=False,):
-    detector=YOLOPoseDetector(model_path=model_path, conf=conf)
-    stream_frame_instance_list=list()
-    frame_list=list()
+def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug, plot=False, ):
+    detector = YOLOPoseDetector(model_path=model_path, conf=conf)
+    stream_frame_instance_list = list()
+    frame_list = list()
     while True:
         stream_frame_instance_list.clear()
         frame_list.clear()
@@ -127,7 +121,6 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
             print(f"[yolo_pose_worker ERROR] {e}")
 
 
-
 class YOLOPoseDetector:
     def __init__(self, model_path="yolo11x-pose.pt", conf=0.3, debug=False, ):
         self.model_path = model_path
@@ -138,5 +131,3 @@ class YOLOPoseDetector:
 
     def run_inference(self, frames):
         return self.model(frames, conf=self.conf, half=True, stream=True)
-
-

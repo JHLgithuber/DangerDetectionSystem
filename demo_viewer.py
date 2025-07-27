@@ -113,7 +113,7 @@ def visual_from_detection_numpy(stream_frame_instance, overlay=False, debug=True
         :param debug:
     """
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, overlay=overlay,  debug=debug)
+        stream_frame_instance, overlay=overlay, debug=debug)
     boxes = stream_frame_instance.human_detection_numpy
 
     return _draw_bbox(frame, boxes)
@@ -325,7 +325,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                         )
                     else:  # 별도의 처리가 없었던 프레임
                         result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-                            stream_frame_instance= instances_per_frame_instance,
+                            stream_frame_instance=instances_per_frame_instance,
                             overlay=overlay, debug=debug
                         )
                     instances_per_frame_instance.sequence_perf_counter["viewer_after_visual"] = time.perf_counter()
@@ -400,9 +400,10 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 stream_viewer_queue_dict[stream_name] = Queue(maxsize=10)
                 from threading import Thread
                 viewer_thread = Thread(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
-                                  args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
-                                        show_fps, visual, overlay, debug))
-                viewer_thread.daemon=True
+                                       args=(stream_viewer_queue_dict[stream_name], server_queue, headless,
+                                             show_latency,
+                                             show_fps, visual, overlay, debug))
+                viewer_thread.daemon = True
                 viewer_thread.start()
                 stream_viewer_thread_set.add(viewer_thread)
                 time.sleep(0.001)
@@ -443,7 +444,8 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     headless = headless or is_headless_cv2()
 
     imshow_demo_proc = Process(name="_show_imshow_demo", target=_show_imshow_demo,
-                               args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, overlay, debug))
+                               args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, overlay,
+                                     debug))
     imshow_demo_proc.daemon = True
     imshow_demo_proc.start()
     return imshow_demo_proc
