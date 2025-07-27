@@ -18,8 +18,11 @@ Update 2025‑07‑16 (#4):
 
 import sys
 import math
+from multiprocessing.managers import SharedMemoryManager
+
 import cv2
 import multiprocessing
+import fall_detection_adapt_layer
 import numpy as np
 from typing import Optional
 from PyQt5.QtWidgets import (
@@ -62,6 +65,9 @@ def camera_process(source, cam_id, queue, flags):
         # 프레임 복사 (필요 시 AI용으로 별도 복사)
         processed_frame = frame.copy()
 
+        #낙상감지용 프레임 복사
+        behavior_frame = frame.copy()
+
         current_behavior = flags[cam_id].get("behavior", False)
         current_equipment = flags[cam_id].get("equipment", False)
 
@@ -81,7 +87,7 @@ def camera_process(source, cam_id, queue, flags):
             prev_equipment = current_equipment
 
         # AI 처리
-        if current_behavior or current_equipment:
+        if current_equipment:
             processed_frame = run_yolo_and_track(
                 processed_frame,
                 yolo_model,
@@ -89,6 +95,16 @@ def camera_process(source, cam_id, queue, flags):
                 conf=0.5,
                 nms=0.7,
             )
+
+        # 낙상 감지
+        if current_behavior:
+            processed_frame = fall_detect(
+                stream_id= str(cam_id),
+                raw_frame=behavior_frame,
+                pre_processed_frame=processed_frame,
+            )
+
+
 
         # 처리된 프레임 전달
         queue.put((cam_id, processed_frame, None))
@@ -318,11 +334,17 @@ def run():
     for i in range(len(sources)):
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []
+
     for i, src in enumerate(sources):
         p = Process(target=camera_process, args=(src, i, queue, shared_flags))
         p.daemon = True
         p.start()
         procs.append(p)
+
+
+    fall_detection_adapt_layer.fall_detect_init(sources)
+
+
 
     app = QApplication(sys.argv)
     gui = NVRGUI(sources, queue, shared_flags)

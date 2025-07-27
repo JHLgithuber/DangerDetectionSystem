@@ -60,9 +60,14 @@ class InputStream:
 
     def _get_initial_frame(self):
         try:
-            cap = self.__cv2_capture()
-            ret, img = cap.read()
-            cap.release()
+            if self.media_format == "cv2_frame":
+                img= self.source_path.get()
+                ret = True
+            else:
+                cap = self.__cv2_capture()
+                ret, img = cap.read()
+                cap.release()
+
             if not ret or img is None:
                 raise RuntimeError("첫 프레임 읽기 실패")
             self.height, self.width = img.shape[:2]
@@ -82,12 +87,17 @@ class InputStream:
         return self.frame_bytes
 
     def _frame_generator(self, cap):
+        if self.media_format == "cv2_frame":
+            while True:
+                yield self.source_path.get()
+
         while self.running and cap.isOpened():
             ret, frame = cap.read()
             if not ret or frame is None:
                 break
             yield frame
-        cap.release()
+
+
 
     def _enqueue(self, instance):
         if self.metadata_queue.full():
@@ -135,7 +145,7 @@ class InputStream:
 
     def run_stream(self, manager_smm):
         self.manager_smm = manager_smm
-        if self.media_format == "file":
+        if self.media_format == "file" or self.media_format == "cv2_frame":
             target = self._loop_stream
         else:
             target = self._once_stream
@@ -166,6 +176,8 @@ class InputStream:
             cap = cv2.VideoCapture(self.source_path)
         elif self.media_format == "webcam_id":
             cap = cv2.VideoCapture(int(self.source_path))
+        elif self.media_format == "cv2_frame":
+            cap = None    #커스텀 제너레이터 형태
         else:
             cap = cv2.VideoCapture(self.source_path)
         return cap

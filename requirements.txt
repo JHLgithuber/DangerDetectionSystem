@@ -1,5 +1,4 @@
 loguru==0.7.3
-mediapipe==0.10.21
 numpy~=2.2.6
 opencv-python~=4.12.0.88
 pycocotools==2.0.8
@@ -11,3 +10,12 @@ psutil~=7.0.0
 packaging~=25.0
 setuptools~=72.1.0
 flask~=3.1.0
+tensorrt~=10.13.0.35
+pyqt5~=5.15.11
+ultralytics~=8.3.169
+beautifulsoup4~=4.12.3
+pillow~=11.2.1
+yaml~=0.2.5
+pyyaml~=6.0.2
+requests~=2.32.3
+scipy~=1.15.3
