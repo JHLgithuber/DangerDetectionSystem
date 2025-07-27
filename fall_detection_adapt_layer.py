@@ -13,7 +13,7 @@ from demo_viewer import start_imshow_demo
 from stream_input import InputStream
 from dataclass_for_StreamFrameInstance import StreamFrameInstance
 
-def output_stream_classifier(output_queue, classified_queues, sources):
+def _output_stream_classifier(output_queue, classified_queues, sources):
     while True:
         src, output_frame = output_queue.get()
         classified_queues[src].put(output_frame)
@@ -72,7 +72,7 @@ def fall_detect_init(sources, max_frames=500, debug_mode = True):
     for src in sources:
         classified_queues[str(src)] = Queue(maxsize=5)
     from threading import Thread
-    classified_thread=Thread(target=output_stream_classifier, args=(not_classified_queue, classified_queues, sources))
+    classified_thread=Thread(target=_output_stream_classifier, args=(not_classified_queue, classified_queues, sources))
 
     # 출력 스트림 설정
     output_metadata_queue = Queue(maxsize=30 * stream_many)
