@@ -364,3 +364,6 @@ data_for_test/
 /.idea/codeStyles/codeStyleConfig.xml
 /image.jpg
 /.idea/runConfigurations/main.xml
+/ultralytics-main/
+/yolo11x-pose.*
+
