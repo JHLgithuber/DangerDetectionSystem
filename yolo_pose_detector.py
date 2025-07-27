@@ -46,14 +46,10 @@ def yolo_pose_round_robin_worker(input_q,output_q,round_robin_input_queues,round
     output_queue_index=0
     try:
         while True:
-            #if not workers[input_queue_index].is_alive():
-            #    raise Exception(f"[yolo_pose_round_robin_worker] worker {input_queue_index} is dead")
-
             if not input_q.empty():
                 input_data=input_q.get()
                 round_robin_input_queues[input_queue_index].put(input_data)
                 input_queue_index=(input_queue_index+1)%len(round_robin_input_queues)
-
 
             try:
                 output_data=round_robin_output_queues[output_queue_index].get_nowait()
@@ -65,15 +61,12 @@ def yolo_pose_round_robin_worker(input_q,output_q,round_robin_input_queues,round
 
     except KeyboardInterrupt:
         print(f"[yolo_pose_round_robin_worker] {current_process().name} is ended by KeyboardInterrupt")
-        raise KeyboardInterrupt
+
     except Exception as e:
         print(f"[yolo_pose_round_robin_worker ERROR] {e}")
         traceback.print_exc()
         raise e
-    #finally:
-    #    for q in round_robin_input_queues: q.close()
-    #    for q in round_robin_output_queues: q.close()
-    #    for w in workers: w.terminate()
+
 
 
 
@@ -130,7 +123,6 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
 
         except KeyboardInterrupt:
             print(f"[yolo_pose_worker] {current_process().name} is ended by KeyboardInterrupt")
-            raise KeyboardInterrupt
         except Exception as e:
             print(f"[yolo_pose_worker ERROR] {e}")
 

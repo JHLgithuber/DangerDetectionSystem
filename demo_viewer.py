@@ -384,7 +384,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
         None
     """
     stream_viewer_queue_dict = dict()
-    stream_viewer_process_set = set()
+    stream_viewer_thread_set = set()
     try:
         print("[INFO] imshow demo start")
         while True:
@@ -394,17 +394,20 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
             if stream_name not in stream_viewer_queue_dict:
                 if debug: print(f"[DEBUG] {stream_name} is new in stream_viewer_queue_dict.")
                 stream_viewer_queue_dict[stream_name] = Queue(maxsize=10)
-                process = Process(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
+                from threading import Thread
+                viewer_thread = Thread(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
                                         show_fps, visual, debug))
-                stream_viewer_process_set.add(process)
-                process.start()
+                viewer_thread.daemon=True
+                viewer_thread.start()
+                stream_viewer_thread_set.add(viewer_thread)
                 time.sleep(0.001)
 
             if stream_viewer_queue_dict[stream_name].full():
                 print(f"[Warning] {stream_name} _show_imshow_demo queue is FULL.")
 
             stream_viewer_queue_dict[stream_name].put(stream)
+            time.sleep(0.001)
 
 
     except KeyboardInterrupt:
@@ -412,15 +415,6 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
 
     except Exception as e:
         print(f"\nDEMO VIEWER is KILL by {e}")
-
-    finally:
-        def __terminate_process():
-            for viewer in stream_viewer_process_set:
-                viewer.terminate()
-                viewer.join()
-                print(f"[INFO] {viewer.name} is terminated.")
-
-        __terminate_process()
 
 
 def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, show_fps=False, visual=True,
@@ -445,7 +439,7 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
 
     imshow_demo_proc = Process(name="_show_imshow_demo", target=_show_imshow_demo,
                                args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, debug))
-    imshow_demo_proc.daemon = False
+    imshow_demo_proc.daemon = True
     imshow_demo_proc.start()
     return imshow_demo_proc
 

@@ -36,7 +36,7 @@ def get_args():
 
 def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
          print_visual=True, web_viewer=True, imshow_viewer=True,
-         max_frames=1000):
+         max_frames=500):
     """
     전체 위험 감지 시스템 파이프라인 초기화 및 실행
 
@@ -62,6 +62,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
     stream_instance_dict = dict()
     pose_processes = None
     manager_process = None
+    demo_process = None
     server_thread = None
     consumer_thread = None
 
@@ -108,7 +109,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
         # headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
         # server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
         # visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
-        demo_thread = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue,
+        demo_process = start_imshow_demo(stream_queue=output_metadata_queue, server_queue=server_queue,
                                         headless=not imshow_viewer,
                                         show_latency=show_latency, show_fps=show_fps, visual=print_visual,
                                         debug=debug_mode)
@@ -120,7 +121,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                                                                 output_q=after_pose_estimation_queue,
                                                                 conf=0.3,
                                                                 max_batch_size=20,
-                                                                worker_num=3,
+                                                                worker_num=6,
                                                                 debug=debug_mode, )
 
         # Falling multi frame IoU Checker
@@ -143,7 +144,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
             if server_queue is not None and server_queue.full(): print("[Warning] server_queue is FULL")
 
             # Watch Dog
-            if not demo_thread.is_alive():
+            if not demo_process.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
             if not all(proc.is_alive() for proc in pose_processes):
                 raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
@@ -180,6 +181,10 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                 manager_process.terminate()
                 manager_process.join(timeout=5.0)
 
+            if demo_process and demo_process.is_alive():
+                demo_process.terminate()
+                demo_process.join(timeout=5.0)
+
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
                 del frame_smm_mgr
@@ -213,10 +218,10 @@ if __name__ == "__main__":
         # ("LiveCamera_Windows", 0, "webcam_id"),
         # ("SORA_1","data_for_test/CCTV_BY_CG_1.mp4","file"),
         # ("SORA_2","data_for_test/CCTV_BY_CG_2.mp4","file"),
-        # ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
-        # ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
-        # ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
-        # ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
+         ("SORA_3","data_for_test/CCTV_BY_CG_3.mp4","file"),
+         ("SORA_4","data_for_test/CCTV_BY_CG_4.mp4","file"),
+         ("TEST_0", "rtsp://210.99.70.120:1935/live/cctv068.stream", "rtsp"),
+         ("TEST_1", "rtsp://210.99.70.120:1935/live/cctv069.stream", "rtsp"),
         # ("TEST_2", "rtsp://210.99.70.120:1935/live/cctv070.stream", "rtsp"),
         # ("TEST_3", "rtsp://210.99.70.120:1935/live/cctv071.stream", "rtsp"),
         # ("TEST_4", "rtsp://210.99.70.120:1935/live/cctv072.stream", "rtsp"),
