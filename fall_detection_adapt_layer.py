@@ -83,6 +83,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
     from threading import Thread
     classified_thread = Thread(target=_output_stream_classifier,
                                args=(not_classified_queue, classified_queues, sources))
+    classified_thread.start()
 
     # 출력 스트림 설정
     output_metadata_queue = Queue(maxsize=30 * stream_many)
