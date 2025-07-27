@@ -45,7 +45,7 @@ from multiprocessing import Manager, Process, freeze_support
 from yolo_run6 import YOLOWorldTRT, run_yolo_and_track
 import time
 
-def camera_process(source, cam_id, queue, flags):
+def camera_process(source, cam_id, queue, flags, io_queue):
     #yolox_model = YOLOX_TRT(engine_path="E:/YOLOX/yolox_custom.engine")
     yolo_model = YOLOWorldTRT(engine_path="E:/yoloworld/yolov8x-worldv2.engine")
 
@@ -98,10 +98,10 @@ def camera_process(source, cam_id, queue, flags):
 
         # 낙상 감지
         if current_behavior:
-            processed_frame = fall_detect(
-                stream_id= str(cam_id),
-                raw_frame=behavior_frame,
-                pre_processed_frame=processed_frame,
+            processed_frame = fall_detection_adapt_layer.simple_detect(
+                io_queue=io_queue,
+                frame=behavior_frame,
+                pre_processed_frame=processed_frame
             )
 
 
@@ -335,15 +335,13 @@ def run():
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []
 
+    io_queues, processes_dict = fall_detection_adapt_layer.fall_detect_init(sources)
+
     for i, src in enumerate(sources):
-        p = Process(target=camera_process, args=(src, i, queue, shared_flags))
+        p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
         p.daemon = True
         p.start()
         procs.append(p)
-
-
-    fall_detection_adapt_layer.fall_detect_init(sources)
-
 
 
     app = QApplication(sys.argv)

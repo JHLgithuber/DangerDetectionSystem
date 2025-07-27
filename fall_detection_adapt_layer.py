@@ -1,17 +1,34 @@
-import argparse
 import time
-from multiprocessing import Queue, freeze_support, set_start_method, cpu_count
 from multiprocessing.managers import SharedMemoryManager
 
 import cv2
-
-import dataclass_for_StreamFrameInstance
+import numpy as np
 import falling_iou_checker
-import stream_server as stream
 import yolo_pose_detector
 from demo_viewer import start_imshow_demo
-from stream_input import InputStream
-from dataclass_for_StreamFrameInstance import StreamFrameInstance
+import time
+from multiprocessing.managers import SharedMemoryManager
+
+import cv2
+import numpy as np
+
+import falling_iou_checker
+import yolo_pose_detector
+from demo_viewer import start_imshow_demo
+
+
+def simple_detect(io_queue, frame, pre_processed_frame=None):
+    raw_cv2_frame_input_queue, classified_queue = io_queue
+    while classified_queue.empty():
+        classified_queue.get()
+    raw_cv2_frame_input_queue.put(frame)
+    processed_frame = classified_queue.get()
+
+    if pre_processed_frame is not None:
+        processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)
+
+    return processed_frame
+
 
 def _output_stream_classifier(output_queue, classified_queues, sources):
     while True:
@@ -20,8 +37,9 @@ def _output_stream_classifier(output_queue, classified_queues, sources):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=500, debug_mode = True):
+def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode = True):
     """
+    :param overlay_output:
     :param sources: 스트림 주소나 cam_id
     :param max_frames: 스트림당 메모리 할당량
     :param debug_mode: 디버그 모드
@@ -39,6 +57,7 @@ def fall_detect_init(sources, max_frames=500, debug_mode = True):
     raw_cv2_frame_input_queues = dict()
     stream_instance_dict = dict()
     for i, src in enumerate(sources):
+        src=str(src)
         print(f"name: {src}, url: {src}")
         raw_cv2_frame_input_queues[src] = Queue(maxsize=5)
         stream_instance_dict[src] = InputStream(source_path=raw_cv2_frame_input_queues[src],
@@ -83,7 +102,7 @@ def fall_detect_init(sources, max_frames=500, debug_mode = True):
                                      server_queue=not_classified_queue,
                                      headless=True,
                                      show_latency=True, show_fps=True, visual=True,
-                                     debug=debug_mode)
+                                     overlay= overlay_output, debug=debug_mode)
 
 
     # Pose Estimation
@@ -115,5 +134,8 @@ def fall_detect_init(sources, max_frames=500, debug_mode = True):
     processes_dict["stream_instance_dict"] = stream_instance_dict
     processes_dict["manager_process"] = manager_process
 
+    io_queues = dict()
+    for src in sources:
+        io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
 
-    return raw_cv2_frame_input_queues, classified_queues, processes_dict
+    return io_queues, processes_dict

@@ -75,11 +75,12 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
         shm.close()
 
 
-def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False):
+def load_frame_from_shared_memory(stream_frame_instance, copy=True, overlay=False, debug=False):
     """
     공유 메모리에서 프레임 로드
 
     Args:
+        :param overlay: 오버레이용 출력모드(빈화면)
         :param stream_frame_instance: 프레임 메타정보 포함 객체
         :param copy: 복사 여부(프레임 복사시 성능 하락, 편집 필요시 복사)
         :param debug: : 디버그 메시지 출력 여부
@@ -94,9 +95,13 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, debug=False)
     shm = None
     try:
         if debug: print(f"memory_name is {memory_name} for load_frame")
-        shm = shared_memory.SharedMemory(name=memory_name)
         shape = (stream_frame_instance.height, stream_frame_instance.width, 3)
         # 즉시 복사하여 새로운 버퍼 생성
+        if overlay:
+            black_frame = np.zeros((stream_frame_instance.height, stream_frame_instance.width, 3), dtype=np.uint8)
+            return black_frame
+
+        shm = shared_memory.SharedMemory(name=memory_name)
         if copy:
             if debug: print(f"copy {stream_frame_instance.stream_name} frame from shared memory")
             frame = np.ndarray(shape, dtype=np.uint8, buffer=shm.buf).copy()

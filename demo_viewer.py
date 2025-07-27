@@ -10,7 +10,7 @@ import dataclass_for_StreamFrameInstance
 
 
 # noinspection PyUnusedLocal
-def visual_from_fall_flag(stream_frame_instance, debug=True):
+def visual_from_fall_flag(stream_frame_instance, overlay=False, debug=True):
     """
     낙상 여부 플래그에 따라 포즈 오버레이 시각화
 
@@ -19,12 +19,13 @@ def visual_from_fall_flag(stream_frame_instance, debug=True):
 
     Returns:
         np.ndarray: 낙상 시각화가 적용된 프레임
+        :param overlay:
         :param stream_frame_instance:
         :param debug:
     """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, debug=debug)
+        stream_frame_instance, overlay=overlay, debug=debug)
 
     frame = _draw_bbox(frame, stream_frame_instance.human_detection_numpy)
     frame = _draw_skeleton(frame, stream_frame_instance.pose_detection_numpy)
@@ -43,7 +44,7 @@ def visual_from_fall_flag(stream_frame_instance, debug=True):
 
 
 # noinspection PyUnusedLocal
-def visual_from_pose_estimation(stream_frame_instance, debug=True):
+def visual_from_pose_estimation(stream_frame_instance, overlay=False, debug=True):
     """
     포즈 인식 결과에 대한 원본 프레임에 시각화
 
@@ -52,12 +53,13 @@ def visual_from_pose_estimation(stream_frame_instance, debug=True):
 
     Returns:
         np.ndarray: 스켈레톤 오버레이가 적용된 프레임
+        :param overlay:
         :param stream_frame_instance:
         :param debug:
     """
     # 1. 원본 프레임 로드
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-        stream_frame_instance, debug=debug)
+        stream_frame_instance, overlay=overlay, debug=debug)
 
     frame = _draw_bbox(frame, stream_frame_instance.human_detection_numpy)
     keypoints = stream_frame_instance.pose_detection_numpy
@@ -95,7 +97,7 @@ def _draw_skeleton(frame, keypoints, bone_color=(255, 255, 255), angle_color=(0,
     return frame
 
 
-def visual_from_detection_numpy(stream_frame_instance, debug=True):
+def visual_from_detection_numpy(stream_frame_instance, overlay=False, debug=True):
     """
     객체 탐지 결과를 프레임에 시각화
 
@@ -105,11 +107,13 @@ def visual_from_detection_numpy(stream_frame_instance, debug=True):
 
     Returns:
         np.ndarray: 시각화된 프레임
+        :param overlay:
         :param stream_frame_instance:
         :param cls_conf:
         :param debug:
     """
-    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance, debug=debug)
+    frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
+        stream_frame_instance, overlay=overlay,  debug=debug)
     boxes = stream_frame_instance.human_detection_numpy
 
     return _draw_bbox(frame, boxes)
@@ -275,7 +279,7 @@ def _add_fps_to_frame(frame_id, frame=None, debug=False, ):
 
 
 def _update_imshow_process(stream_queue_for_process, server_queue, headless=False, show_latency=False, show_fps=False,
-                           visual=True, debug=False):
+                           visual=True, overlay=False, debug=False):
     """
     스트림 프레임을 시각화하는 데모 프로세스
     큐에 들어온 데이터의 상태에 따라 조건문에 따른 적합한 시각화
@@ -307,22 +311,22 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
                     if instances_per_frame_instance.fall_flag_list is not None:  # 낙상 감지가 완료된 프레임
                         result_frame = visual_from_fall_flag(
                             stream_frame_instance=instances_per_frame_instance,
-                            debug=debug,
+                            overlay=overlay, debug=debug,
                         )
                     elif instances_per_frame_instance.pose_detection_numpy is not None:  # 포즈 감지가 완료된 프레임
                         result_frame = visual_from_pose_estimation(
                             stream_frame_instance=instances_per_frame_instance,
-                            debug=debug,
+                            overlay=overlay, debug=debug,
                         )
                     elif instances_per_frame_instance.human_detection_numpy is not None:  # 객체 감지가 완료된 프레임
                         result_frame = visual_from_detection_numpy(
                             stream_frame_instance=instances_per_frame_instance,
-                            debug=debug,
+                            overlay=overlay, debug=debug,
                         )
                     else:  # 별도의 처리가 없었던 프레임
                         result_frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
-                            instances_per_frame_instance,
-                            debug=debug
+                            stream_frame_instance= instances_per_frame_instance,
+                            overlay=overlay, debug=debug
                         )
                     instances_per_frame_instance.sequence_perf_counter["viewer_after_visual"] = time.perf_counter()
 
@@ -370,7 +374,7 @@ def _update_imshow_process(stream_queue_for_process, server_queue, headless=Fals
 
 
 def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=False, show_fps=False, visual=True,
-                      debug=False):
+                      overlay=False, debug=False):
     """
     다중 스트림을 위한 imshow 데모 실행 및 프로세스 관리
     새로운 스트림이 들어오면 이에 대응하는 프로세스 생성
@@ -397,7 +401,7 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
                 from threading import Thread
                 viewer_thread = Thread(name=f"_update_imshow_process-{stream_name}", target=_update_imshow_process,
                                   args=(stream_viewer_queue_dict[stream_name], server_queue, headless, show_latency,
-                                        show_fps, visual, debug))
+                                        show_fps, visual, overlay, debug))
                 viewer_thread.daemon=True
                 viewer_thread.start()
                 stream_viewer_thread_set.add(viewer_thread)
@@ -418,11 +422,12 @@ def _show_imshow_demo(stream_queue, server_queue, headless=False, show_latency=F
 
 
 def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_latency=False, show_fps=False, visual=True,
-                      debug=False, ):
+                      overlay=False, debug=False, ):
     """
     imshow 데모를 백그라운드 스레드로 시작
 
     Args:
+        :param overlay:
         :param visual: frame 합성 여부, False시 CLI Only(스트리밍도 불가)
         :param show_fps: FPS 출력 여부
         :param stream_queue: StreamFrameInstance 객체가 들어오는 메인 큐
@@ -438,7 +443,7 @@ def start_imshow_demo(stream_queue, server_queue=None, headless=False, show_late
     headless = headless or is_headless_cv2()
 
     imshow_demo_proc = Process(name="_show_imshow_demo", target=_show_imshow_demo,
-                               args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, debug))
+                               args=(stream_queue, server_queue, headless, show_latency, show_fps, visual, overlay, debug))
     imshow_demo_proc.daemon = True
     imshow_demo_proc.start()
     return imshow_demo_proc
