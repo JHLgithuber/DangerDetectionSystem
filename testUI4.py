@@ -20,6 +20,7 @@ import math
 import sys
 import time
 from multiprocessing import Manager, Process, freeze_support
+import queue
 from multiprocessing.managers import SharedMemoryManager
 from typing import Optional
 
@@ -59,6 +60,11 @@ def camera_process(source, cam_id, queue, flags, io_queue):
 
     # tracked_objects 변수를 루프 시작 전에 초기화
     tracked = []
+    fall_detection_queue=queue.Queue()
+    fall_detection_adapt_thread=fall_detection_adapt_layer.simple_detect_with_queue(
+        io_queue=io_queue, input_q=fall_detection_queue, output_q=queue, cam_id=cam_id
+    )
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -102,15 +108,11 @@ def camera_process(source, cam_id, queue, flags, io_queue):
 
         # 낙상 감지
         if current_behavior:
-            print("behavior")
-            processed_frame = fall_detection_adapt_layer.simple_detect(
-                io_queue=io_queue,
-                frame=behavior_frame,
-                pre_processed_frame=processed_frame
-            )
+            fall_detection_queue.put((behavior_frame, processed_frame))
 
-        # 처리된 프레임 전달
-        queue.put((cam_id, processed_frame, None))
+        else:
+            # 처리된 프레임 전달
+            queue.put((cam_id, processed_frame, None))
 
         # 부하 방지
         time.sleep(1 / 30)  # 30 FPS

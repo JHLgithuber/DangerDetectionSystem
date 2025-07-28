@@ -1,3 +1,4 @@
+import threading
 import time
 from multiprocessing.managers import SharedMemoryManager
 from multiprocessing import Queue
@@ -23,6 +24,35 @@ def simple_detect(io_queue, frame, pre_processed_frame=None):
 
     return processed_frame
 
+def simple_detect_with_queue(io_queue, input_q, output_q, cam_id):
+    """
+
+    :param cam_id:
+    :param io_queue:
+    :param input_q: (frame, pre_processed_frame)
+    :param output_q:
+    :return:
+    """
+    raw_cv2_frame_input_queue, classified_queue = io_queue
+    def simple_detect_with_queue_worker():
+        pre_processed_frame_list = list()
+        while True:
+            if not input_q.empty():
+                frame, pre_processed_frame = input_q.get()
+                raw_cv2_frame_input_queue.put(frame)
+                pre_processed_frame_list.append(pre_processed_frame)
+
+            if not classified_queue.empty():
+                post_processed_frame=classified_queue.get()
+                pre_processed_frame = pre_processed_frame_list.pop(0)
+                post_processed_frame = np.where(post_processed_frame != 0, post_processed_frame, pre_processed_frame)
+                output_q.put((cam_id, post_processed_frame, None))
+
+
+    thread = threading.Thread(target=simple_detect_with_queue_worker)
+    thread.daemon=True
+    thread.start()
+    return thread
 
 def output_stream_classifier(output_queue, classified_queues):
     while True:

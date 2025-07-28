@@ -173,6 +173,8 @@ def web_viewer(stream_name, frame, server_queue, debug=False):
             print(f"[web_viewer ERROR] {stream_name}: 빈 프레임")
 
         if debug: print(f"[web_viewer DEBUG] {stream_name}: 프레임 shape: {frame.shape}, dtype: {frame.dtype}")
+        if server_queue.full():
+            server_queue.get()
         server_queue.put((stream_name, frame))
 
     except Exception as e:
