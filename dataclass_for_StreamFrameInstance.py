@@ -71,8 +71,7 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
     except Exception as e:
         print(f"공유 메모리 저장 중 오류: {e}")
         return None
-    finally:
-        shm.close()
+
 
 
 def load_frame_from_shared_memory(stream_frame_instance, copy=True, overlay=False, debug=False):
@@ -119,7 +118,7 @@ def load_frame_from_shared_memory(stream_frame_instance, copy=True, overlay=Fals
 
     finally:
         # 항상 공유 메모리 연결을 닫음
-        if copy and shm is not None:
+        if not overlay and shm is not None:
             shm.close()
 
 

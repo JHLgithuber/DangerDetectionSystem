@@ -11,9 +11,11 @@ from demo_viewer import start_imshow_demo
 
 def simple_detect(io_queue, frame, pre_processed_frame=None):
     raw_cv2_frame_input_queue, classified_queue = io_queue
-    while classified_queue.empty():
+    while not classified_queue.empty():
         classified_queue.get()
+        print("queue is not empty")
     raw_cv2_frame_input_queue.put(frame)
+    print("raw_cv2_frame_input_queue.put is done")
     processed_frame = classified_queue.get()
 
     if pre_processed_frame is not None:
@@ -22,15 +24,16 @@ def simple_detect(io_queue, frame, pre_processed_frame=None):
     return processed_frame
 
 
-def _output_stream_classifier(output_queue, classified_queues):
+def output_stream_classifier(output_queue, classified_queues):
     while True:
         src, output_frame = output_queue.get()
         classified_queues[src].put(output_frame)
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=True):
+def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=True, debug_mode=True):
     """
+    :param shm_names_dict:
     :param overlay_output:
     :param sources: 스트림 주소나 cam_id
     :param max_frames: 스트림당 메모리 할당량
@@ -38,8 +41,6 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
 
     :return: 스트림별 입력큐, 출력큐
     """
-    frame_smm_mgr = SharedMemoryManager()
-    frame_smm_mgr.start()
     stream_many = len(sources)
 
     # 입력 스트림 초기화
@@ -49,41 +50,35 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
     raw_cv2_frame_input_queues = dict()
     stream_instance_dict = dict()
     for i, src in enumerate(sources):
-        src = str(src)
+        str_src = str(src)
         print(f"name: {src}, url: {src}")
-        raw_cv2_frame_input_queues[src] = Queue(maxsize=5)
-        stream_instance_dict[src] = InputStream(source_path=raw_cv2_frame_input_queues[src],
-                                                metadata_queue=input_metadata_queue,
-                                                stream_name=str(src),
-                                                receive_frame=1, ignore_frame=0,
-                                                resize=None,
-                                                media_format="cv2_frame", debug=debug_mode)
+
         cap = cv2.VideoCapture(src)
         for _ in range(5):
             ret, frame = cap.read()
             if not ret:
                 raise Exception("Stream initialization failed")
-            stream_instance_dict[src].put(frame)
+            raw_cv2_frame_input_queues[str_src] = Queue(maxsize=5)
+            raw_cv2_frame_input_queues[str_src].put(frame)
 
-    # 공유메모리 설정
 
-    shm_objs_dict = dict()
-    shm_names_dict = dict()
-    for name, instance in stream_instance_dict.items():
-        shm_objs = [frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
-        for shm in shm_objs: shm.buf[:] = b'\0' * instance.get_bytes()
-        shm_name = [shm.name for shm in shm_objs]
-        shm_objs_dict[name] = shm_objs
-        shm_names_dict[name] = shm_name
+        stream_instance_dict[str_src] = InputStream(source_path=raw_cv2_frame_input_queues[str_src],
+                                                metadata_queue=input_metadata_queue,
+                                                stream_name=str_src,
+                                                receive_frame=1, ignore_frame=0,
+                                                resize=None,
+                                                media_format="cv2_frame", debug=debug_mode)
+
 
     classified_queues = dict()
     not_classified_queue = Queue(maxsize=5)
     for src in sources:
         classified_queues[str(src)] = Queue(maxsize=5)
     from threading import Thread
-    classified_thread = Thread(target=_output_stream_classifier,
+    classified_thread = Thread(target=output_stream_classifier,
                                args=(not_classified_queue, classified_queues))
     classified_thread.start()
+    if debug_mode: print(f"classified_thread.is_alive: {classified_thread.is_alive()}")
 
     # 출력 스트림 설정
     output_metadata_queue = Queue(maxsize=30 * stream_many)
@@ -95,6 +90,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
                                      headless=True,
                                      show_latency=True, show_fps=True, visual=True,
                                      overlay=overlay_output, debug=debug_mode)
+    if debug_mode: print(f"demo_process.is_alive: {demo_process.is_alive()}")
 
     # Pose Estimation
     after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
@@ -104,7 +100,12 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
                                                                                conf=0.3,
                                                                                max_batch_size=20,
                                                                                worker_num=6,
-                                                                               debug=debug_mode, )
+                                                                               debug=debug_mode,
+                                                                               )
+    if debug_mode:
+        for pose_process in pose_processes:
+            print(f"pose_process.is_alive: {pose_process.is_alive()}")
+        print(f"manager_process.is_alive: {manager_process.is_alive()}")
 
     # Falling multi frame IoU Checker
     fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
@@ -112,6 +113,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
                                                        buffer_size=50,
                                                        fall_ratio_thresh=0.7,
                                                        debug=debug_mode)
+    if debug_mode: print(f"fall_checker.is_alive: {fall_checker.is_alive()}")
 
     # 입력 스트림 실행
     for name, instance in stream_instance_dict.items():
@@ -129,4 +131,5 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
     for src in sources:
         io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
 
+    if debug_mode: print(f"init is done")
     return io_queues, processes_dict

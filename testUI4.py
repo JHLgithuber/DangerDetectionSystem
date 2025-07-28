@@ -20,6 +20,7 @@ import math
 import sys
 import time
 from multiprocessing import Manager, Process, freeze_support
+from multiprocessing.managers import SharedMemoryManager
 from typing import Optional
 
 import cv2
@@ -42,12 +43,15 @@ from PyQt5.QtWidgets import (
 )
 
 import fall_detection_adapt_layer
+import falling_iou_checker
+import yolo_pose_detector
+from demo_viewer import start_imshow_demo
 from yolo_run6 import YOLOWorldTRT, run_yolo_and_track
 
 
 def camera_process(source, cam_id, queue, flags, io_queue):
     # yolox_model = YOLOX_TRT(engine_path="E:/YOLOX/yolox_custom.engine")
-    yolo_model = YOLOWorldTRT(engine_path="E:/yoloworld/yolov8x-worldv2.engine")
+    yolo_model = YOLOWorldTRT(engine_path="yolov8x-worldv2.engine")
 
     cap = cv2.VideoCapture(source)
     prev_behavior = False
@@ -98,6 +102,7 @@ def camera_process(source, cam_id, queue, flags, io_queue):
 
         # 낙상 감지
         if current_behavior:
+            print("behavior")
             processed_frame = fall_detection_adapt_layer.simple_detect(
                 io_queue=io_queue,
                 frame=behavior_frame,
@@ -330,12 +335,113 @@ def run():
     manager = Manager()
     shared_flags = manager.dict()
     queue = manager.Queue()
-    sources = [0, 1, 2]  # adjust to your cameras or RTSP streams
+    sources = [0]  # adjust to your cameras or RTSP streams
     for i in range(len(sources)):
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []
 
-    io_queues, processes_dict = fall_detection_adapt_layer.fall_detect_init(sources)
+    stream_many = len(sources)
+    debug_mode = True
+    max_frames=500
+
+    # 입력 스트림 초기화
+    from multiprocessing import Queue
+    from stream_input import InputStream
+    input_metadata_queue = Queue(maxsize=60 * stream_many)
+    raw_cv2_frame_input_queues = dict()
+    stream_instance_dict = dict()
+    for i, src in enumerate(sources):
+        str_src = str(src)
+        print(f"name: {src}, url: {src}")
+
+        cap = cv2.VideoCapture(src)
+        raw_cv2_frame_input_queues[str_src] = Queue(maxsize=5)
+        for _ in range(5):
+            ret, frame = cap.read()
+            if not ret:
+                raise Exception("Stream initialization failed")
+            raw_cv2_frame_input_queues[str_src].put(frame)
+        cap.release()
+
+
+        stream_instance_dict[str_src] = InputStream(source_path=raw_cv2_frame_input_queues[str_src],
+                                                metadata_queue=input_metadata_queue,
+                                                stream_name=str_src,
+                                                receive_frame=1, ignore_frame=0,
+                                                resize=None,
+                                                media_format="cv2_frame", debug=debug_mode)
+
+    # 공유메모리 설정
+    frame_smm_mgr = SharedMemoryManager()
+    frame_smm_mgr.start()
+    shm_objs_dict = dict()
+    shm_names_dict = dict()
+    for name, instance in stream_instance_dict.items():
+        shm_objs = [frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
+        for shm in shm_objs: shm.buf[:] = b'\0' * instance.get_bytes()
+        shm_name = [shm.name for shm in shm_objs]
+        shm_objs_dict[name] = shm_objs
+        shm_names_dict[name] = shm_name
+        if debug_mode: print(f"shm_dict_name: {name}")
+
+    classified_queues = dict()
+    not_classified_queue = Queue(maxsize=5)
+    for src in sources:
+        classified_queues[str(src)] = Queue(maxsize=5)
+    from threading import Thread
+    classified_thread = Thread(target=fall_detection_adapt_layer.output_stream_classifier,
+                               args=(not_classified_queue, classified_queues))
+    classified_thread.start()
+    if debug_mode: print(f"classified_thread.is_alive: {classified_thread.is_alive()}")
+
+    # 출력 스트림 설정
+    output_metadata_queue = Queue(maxsize=30 * stream_many)
+    # headless       => False: imshow 화면 전시, True: 로컬 화면 전시 없음
+    # server_queue   => None: 웹 뷰어 사용안함, output_metadata_queue: 웹 뷰어 큐
+    # visual         => True: 화면 합성, False: 화면 합성 없음(CLI Only)
+    demo_process = start_imshow_demo(stream_queue=output_metadata_queue,
+                                     server_queue=not_classified_queue,
+                                     headless=True,
+                                     show_latency=True, show_fps=True, visual=True,
+                                     overlay=True, debug=debug_mode)
+    if debug_mode: print(f"demo_process.is_alive: {demo_process.is_alive()}")
+
+    # Pose Estimation
+    after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
+    pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
+                                                                               input_q=input_metadata_queue,
+                                                                               output_q=after_pose_estimation_queue,
+                                                                               conf=0.3,
+                                                                               max_batch_size=20,
+                                                                               worker_num=6,
+                                                                               debug=debug_mode,
+                                                                               )
+    if debug_mode:
+        for pose_process in pose_processes:
+            print(f"pose_process.is_alive: {pose_process.is_alive()}")
+        print(f"manager_process.is_alive: {manager_process.is_alive()}")
+
+    # Falling multi frame IoU Checker
+    fall_checker = falling_iou_checker.run_fall_worker(input_q=after_pose_estimation_queue,
+                                                       output_q=output_metadata_queue,
+                                                       buffer_size=50,
+                                                       fall_ratio_thresh=0.7,
+                                                       debug=debug_mode)
+    if debug_mode: print(f"fall_checker.is_alive: {fall_checker.is_alive()}")
+
+    # 입력 스트림 실행
+    for name, instance in stream_instance_dict.items():
+        instance.run_stream(shm_names_dict[name], )
+
+
+
+
+    #io_queues, processes_dict = fall_detection_adapt_layer.fall_detect_init(sources)
+    io_queues = dict()
+    for src in sources:
+        io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
+
+
 
     for i, src in enumerate(sources):
         p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
