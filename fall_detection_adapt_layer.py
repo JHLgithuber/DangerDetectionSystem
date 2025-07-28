@@ -22,7 +22,7 @@ def simple_detect(io_queue, frame, pre_processed_frame=None):
     return processed_frame
 
 
-def _output_stream_classifier(output_queue, classified_queues, sources):
+def _output_stream_classifier(output_queue, classified_queues):
     while True:
         src, output_frame = output_queue.get()
         classified_queues[src].put(output_frame)
@@ -82,7 +82,7 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
         classified_queues[str(src)] = Queue(maxsize=5)
     from threading import Thread
     classified_thread = Thread(target=_output_stream_classifier,
-                               args=(not_classified_queue, classified_queues, sources))
+                               args=(not_classified_queue, classified_queues))
     classified_thread.start()
 
     # 출력 스트림 설정
