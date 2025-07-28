@@ -1,9 +1,9 @@
 import time
 from multiprocessing.managers import SharedMemoryManager
-
+from multiprocessing import Queue
 import cv2
 import numpy as np
-
+from stream_input import InputStream
 import falling_iou_checker
 import yolo_pose_detector
 from demo_viewer import start_imshow_demo
@@ -31,7 +31,7 @@ def output_stream_classifier(output_queue, classified_queues):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=True, debug_mode=True):
+def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=True):
     """
     :param shm_names_dict:
     :param overlay_output:
@@ -44,8 +44,6 @@ def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=Tru
     stream_many = len(sources)
 
     # 입력 스트림 초기화
-    from multiprocessing import Queue
-    from stream_input import InputStream
     input_metadata_queue = Queue(maxsize=60 * stream_many)
     raw_cv2_frame_input_queues = dict()
     stream_instance_dict = dict()
@@ -54,21 +52,33 @@ def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=Tru
         print(f"name: {src}, url: {src}")
 
         cap = cv2.VideoCapture(src)
+        raw_cv2_frame_input_queues[str_src] = Queue(maxsize=5)
         for _ in range(5):
             ret, frame = cap.read()
             if not ret:
                 raise Exception("Stream initialization failed")
-            raw_cv2_frame_input_queues[str_src] = Queue(maxsize=5)
             raw_cv2_frame_input_queues[str_src].put(frame)
-
+        cap.release()
 
         stream_instance_dict[str_src] = InputStream(source_path=raw_cv2_frame_input_queues[str_src],
-                                                metadata_queue=input_metadata_queue,
-                                                stream_name=str_src,
-                                                receive_frame=1, ignore_frame=0,
-                                                resize=None,
-                                                media_format="cv2_frame", debug=debug_mode)
+                                                    metadata_queue=input_metadata_queue,
+                                                    stream_name=str_src,
+                                                    receive_frame=1, ignore_frame=0,
+                                                    resize=None,
+                                                    media_format="cv2_frame", debug=debug_mode)
 
+    # 공유메모리 설정
+    frame_smm_mgr = SharedMemoryManager()
+    frame_smm_mgr.start()
+    shm_objs_dict = dict()
+    shm_names_dict = dict()
+    for name, instance in stream_instance_dict.items():
+        shm_objs = [frame_smm_mgr.SharedMemory(size=instance.get_bytes()) for _ in range(max_frames)]
+        for shm in shm_objs: shm.buf[:] = b'\0' * instance.get_bytes()
+        shm_name = [shm.name for shm in shm_objs]
+        shm_objs_dict[name] = shm_objs
+        shm_names_dict[name] = shm_name
+        if debug_mode: print(f"shm_dict_name: {name}")
 
     classified_queues = dict()
     not_classified_queue = Queue(maxsize=5)
@@ -89,7 +99,7 @@ def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=Tru
                                      server_queue=not_classified_queue,
                                      headless=True,
                                      show_latency=True, show_fps=True, visual=True,
-                                     overlay=overlay_output, debug=debug_mode)
+                                     overlay=True, debug=debug_mode)
     if debug_mode: print(f"demo_process.is_alive: {demo_process.is_alive()}")
 
     # Pose Estimation
@@ -119,6 +129,10 @@ def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=Tru
     for name, instance in stream_instance_dict.items():
         instance.run_stream(shm_names_dict[name], )
 
+    io_queues = dict()
+    for src in sources:
+        io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
+
     processes_dict = dict()
     processes_dict["demo_process"] = demo_process
     processes_dict["pose_processes"] = pose_processes
@@ -132,4 +146,4 @@ def fall_detect_init(sources, shm_names_dict, max_frames=500, overlay_output=Tru
         io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
 
     if debug_mode: print(f"init is done")
-    return io_queues, processes_dict
+    return io_queues, frame_smm_mgr, shm_objs_dict, processes_dict
