@@ -116,7 +116,7 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
             # 부하 방지
             time.sleep(1 / 30)  # 30 FPS
     except KeyboardInterrupt:
-        raise KeyboardInterrupt
+        print("KeyboardInterrupt")
 
 
 # -------------------------------
@@ -346,6 +346,11 @@ def run():
 
     io_queues, frame_smm_mgr, shm_objs_dict, processes_dict =fall_detection_adapt_layer.fall_detect_init(sources)
 
+    demo_process = None
+    pose_processes = None
+    fall_checker = None
+    stream_instance_dict = None
+    manager_process = None
     try:
         for i, src in enumerate(sources):
             p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
@@ -358,6 +363,26 @@ def run():
         gui.resize(1200, 800)
         gui.show()
 
+        demo_process = processes_dict["demo_process"]
+        pose_processes = processes_dict["pose_processes"]
+        fall_checker = processes_dict["fall_checker"]
+        stream_instance_dict = processes_dict["stream_instance_dict"]
+        manager_process = processes_dict["manager_process"]
+        while True:
+            app.processEvents()
+
+            # Watch Dog
+            if not demo_process.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] demo thread is dead")
+            if not all(proc.is_alive() for proc in pose_processes):
+                raise RuntimeError("[MAIN PROC WD ERROR] pose porc is dead")
+            if not manager_process.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] manager process is dead")
+            if not fall_checker.is_alive():
+                raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
+
+            time.sleep(0.01)
+
     except KeyboardInterrupt:
         print("NVR turnoff...")
     except Exception as e:
@@ -367,12 +392,6 @@ def run():
     finally:  # 리소스 정리
         exit_code = 0
         try:
-            demo_process=processes_dict["demo_process"]
-            pose_processes =processes_dict["pose_processes"]
-            fall_checker=processes_dict["fall_checker"]
-            stream_instance_dict=processes_dict["stream_instance_dict"]
-            manager_process=processes_dict["manager_process"]
-
             if stream_instance_dict:  # 입력스트림 종료
                 for name, instance in stream_instance_dict.items():
                     thread = instance.kill_stream()
@@ -397,6 +416,11 @@ def run():
             if fall_checker:
                 fall_checker.terminate()
                 fall_checker.join(timeout=5.0)
+
+            for cam_proc in procs:
+                if cam_proc.is_alive():
+                    cam_proc.terminate()
+                    cam_proc.join(timeout=5.0)
 
             if frame_smm_mgr:  # 공유메모리 정리
                 frame_smm_mgr.shutdown()
