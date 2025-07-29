@@ -336,7 +336,7 @@ def run():
     manager = Manager()
     shared_flags = manager.dict()
     queue = manager.Queue()
-    sources = [0]  # adjust to your cameras or RTSP streams
+    sources = [0,1]  # adjust to your cameras or RTSP streams
     for i in range(len(sources)):
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []

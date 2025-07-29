@@ -56,7 +56,7 @@ def output_stream_classifier(output_queue, classified_queues):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=240, overlay_output=True, debug_mode=True):
+def fall_detect_init(sources, max_frames=120, overlay_output=True, debug_mode=True):
     """
     :param shm_names_dict:
     :param overlay_output:
@@ -129,12 +129,11 @@ def fall_detect_init(sources, max_frames=240, overlay_output=True, debug_mode=Tr
 
     # Pose Estimation
     after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
-    pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.pt",
+    pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
                                                                                input_q=input_metadata_queue,
                                                                                output_q=after_pose_estimation_queue,
                                                                                conf=0.3,
-                                                                               max_batch_size=20,
-                                                                               worker_num=6,
+                                                                               worker_num=3,
                                                                                debug=debug_mode,
                                                                                )
     if debug_mode:
