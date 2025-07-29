@@ -67,7 +67,7 @@ def yolo_pose_round_robin_worker(input_q, output_q, round_robin_input_queues, ro
 
 
 # noinspection PyTypeChecker
-def yolo_pose_worker(input_q, output_q, model_path, conf, plot=False, ):
+def yolo_pose_worker(input_q, output_q, model_path, conf, debug=False, plot=False, ):
     detector = YOLOPoseDetector(model_path=model_path, conf=conf)
     while True:
         try:
@@ -82,6 +82,7 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, plot=False, ):
             results = detector.run_inference(frame)
             # for stream_frame_instance, result in zip(stream_frame_instance_list, results):
             result = next(results)
+            if debug: print(f"[DEBUG] yolo_pose_worker {current_process().name} result.boxes.xyxy.shape={result.boxes.xyxy.shape}")
             if plot:
                 vis = result.plot()
                 cv2.imshow(stream_frame_instance.stream_name + " yolo_pose_debug", vis)
