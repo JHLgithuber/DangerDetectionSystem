@@ -247,6 +247,134 @@ def check_visibility_presence(conf_array, threshold=0.5):
     return True
 
 
+def detect_sitting_posture(lm2d_list, knee_angle_thresh=70, hip_angle_thresh=60, debug=False):
+    """
+    의자에 앉은 자세 판별 메서드
+    
+    원리:
+        - 무릎 각도: 앉은 자세에서는 무릎이 구부러져 있음 (일반적으로 90도 근처)
+        - 엉덩이 각도: 앉은 자세에서는 엉덩이가 구부러져 있음
+        - 발목과 무릎의 상대적 위치: 앉은 자세에서는 발목이 무릎보다 앞에 위치
+    
+    Args:
+        lm2d_list (list): (17,2) 형태의 랜드마크 리스트
+        knee_angle_thresh (float): 무릎 굽힘 각도 임계값 (deg)
+        hip_angle_thresh (float): 엉덩이 굽힘 각도 임계값 (deg)
+        debug (bool): 디버그 메시지 출력 여부
+    
+    Returns:
+        tuple(bool, str): 앉은 자세 여부, 판단 이유
+    """
+    # 필요한 관절 좌표 추출
+    left_hip = lm2d_list[11]
+    right_hip = lm2d_list[12]
+    left_knee = lm2d_list[13]
+    right_knee = lm2d_list[14]
+    left_ankle = lm2d_list[15]
+    right_ankle = lm2d_list[16]
+    left_shoulder = lm2d_list[5]
+    right_shoulder = lm2d_list[6]
+    
+    # 중간점 계산
+    mid_shoulder = [(left_shoulder[0] + right_shoulder[0]) / 2, 
+                    (left_shoulder[1] + right_shoulder[1]) / 2]
+    mid_hip = [(left_hip[0] + right_hip[0]) / 2, 
+               (left_hip[1] + right_hip[1]) / 2]
+    
+    # 벡터 계산
+    left_thigh_vec = [left_knee[0] - left_hip[0], left_knee[1] - left_hip[1]]
+    right_thigh_vec = [right_knee[0] - right_hip[0], right_knee[1] - right_hip[1]]
+    left_calf_vec = [left_ankle[0] - left_knee[0], left_ankle[1] - left_knee[1]]
+    right_calf_vec = [right_ankle[0] - right_knee[0], right_ankle[1] - right_knee[1]]
+    torso_vec = [mid_shoulder[0] - mid_hip[0], mid_shoulder[1] - mid_hip[1]]
+    
+    # 각도 계산 함수
+    def calculate_angle(vec1, vec2):
+        dot_product = vec1[0] * vec2[0] + vec1[1] * vec2[1]
+        mag1 = math.sqrt(vec1[0]**2 + vec1[1]**2)
+        mag2 = math.sqrt(vec2[0]**2 + vec2[1]**2)
+        cos_angle = dot_product / (mag1 * mag2 + 1e-6)
+        angle_rad = math.acos(max(min(cos_angle, 1.0), -1.0))
+        return math.degrees(angle_rad)
+    
+    # 무릎 각도 계산 (허벅지와 종아리 사이 각도)
+    left_knee_angle = calculate_angle(
+        [-left_thigh_vec[0], -left_thigh_vec[1]], 
+        [left_calf_vec[0], left_calf_vec[1]]
+    )
+    right_knee_angle = calculate_angle(
+        [-right_thigh_vec[0], -right_thigh_vec[1]], 
+        [right_calf_vec[0], right_calf_vec[1]]
+    )
+    
+    # 엉덩이 각도 계산 (상체와 허벅지 사이 각도)
+    left_hip_angle = calculate_angle(
+        [torso_vec[0], torso_vec[1]], 
+        [-left_thigh_vec[0], -left_thigh_vec[1]]
+    )
+    right_hip_angle = calculate_angle(
+        [torso_vec[0], torso_vec[1]], 
+        [-right_thigh_vec[0], -right_thigh_vec[1]]
+    )
+    
+    # 발목과 무릎의 상대적 위치 확인 (앉은 자세에서는 발목이 무릎보다 앞에 위치)
+    left_ankle_forward = left_ankle[0] > left_knee[0]
+    right_ankle_forward = right_ankle[0] > right_knee[0]
+    
+    # 앉은 자세 판별 조건
+    knee_bent = (left_knee_angle < knee_angle_thresh or right_knee_angle < knee_angle_thresh)
+    hip_bent = (left_hip_angle < hip_angle_thresh or right_hip_angle < hip_angle_thresh)
+    ankle_position_correct = (left_ankle_forward or right_ankle_forward)
+    
+    # 결과 판정
+    is_sitting = knee_bent and hip_bent and ankle_position_correct
+    
+    reason = (f"무릎 각도(좌/우): {left_knee_angle:.1f}/{right_knee_angle:.1f} (임계값: {knee_angle_thresh}), "
+              f"엉덩이 각도(좌/우): {left_hip_angle:.1f}/{right_hip_angle:.1f} (임계값: {hip_angle_thresh}), "
+              f"발목 위치 확인(좌/우): {left_ankle_forward}/{right_ankle_forward}")
+    
+    if debug:
+        print(f"Sitting detection: {is_sitting}, {reason}")
+    
+    return is_sitting, reason
+
+
+def detect_sitting(detection_result, conf, knee_angle_thresh=70, hip_angle_thresh=60, debug=False):
+    """
+    의자에 앉은 자세 판별 함수
+    
+    Args:
+        detection_result: pose_landmarks 속성을 포함한 객체 (사람별 랜드마크 리스트)
+        conf: 포즈 키포인트 신뢰도 배열
+        knee_angle_thresh (float): 무릎 굽힘 각도 임계값 (deg)
+        hip_angle_thresh (float): 엉덩이 굽힘 각도 임계값 (deg)
+        debug (bool): 디버그 메시지 출력 여부
+    
+    Returns:
+        bool or None:
+            - True: 앉은 자세 감지됨
+            - False: 앉은 자세 아님
+            - None: 판단 불가 (신뢰도 부족 또는 landmark 없음)
+    """
+    # 랜드마크 리스트가 없으면 반환
+    if detection_result is None or len(detection_result) == 0:
+        return None
+    
+    # 주요 관절의 신뢰도 확인
+    if not check_visibility_presence(conf):
+        return None
+    
+    # 앉은 자세 판별
+    result = detect_sitting_posture(detection_result, knee_angle_thresh, hip_angle_thresh, debug)
+    
+    if result[0]:
+        if debug: print(f"SITTING POSTURE DETECTED: {result[1]}")
+        return True
+    else:
+        if debug: print(f"SITTING POSTURE NOT DETECTED: {result[1]}")
+        return False
+
+
 def detect_fall(detection_result, conf, debug=False):
     """
     여러 낙상 판단 알고리즘 기반 낙상 감지

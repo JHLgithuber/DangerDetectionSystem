@@ -115,8 +115,11 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
             viewer_queue.put((cam_id, processed_frame, None))
 
             # 부하 방지
-            end_time = time.perf_counter()
-            sleep_time= max(1/30- (end_time - start_time),0)
+
+            proc_time = time.perf_counter() - start_time
+            sleep_time= max(1/30- proc_time,0.000001)
+            fps=1/(sleep_time+proc_time)
+            print(f"{cam_id}\tFPS: {fps:.02f} ProcTime: {proc_time:.02f}  SleepTime: {sleep_time:.02f}")
             time.sleep(sleep_time)  # 30 FPS
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
@@ -384,7 +387,7 @@ def run():
             if not fall_checker.is_alive():
                 raise RuntimeError("[MAIN PROC WD ERROR] fall checker is dead")
 
-            time.sleep(0.01)
+            time.sleep(0.0001)
 
     except KeyboardInterrupt:
         print("NVR turnoff...")

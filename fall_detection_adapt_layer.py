@@ -9,7 +9,7 @@ import yolo_pose_detector
 from demo_viewer import start_imshow_demo
 
 
-def simple_detect(io_queue, frame, pre_processed_frame=None, need_detect=False):
+def simple_detect(io_queue, frame, pre_processed_frame=None, need_detect=True):
     try:
         raw_cv2_frame_input_queue, classified_queue = io_queue
         while not classified_queue.empty():
