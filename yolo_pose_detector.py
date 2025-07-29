@@ -85,7 +85,7 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
 
             results = detector.run_inference(frame)
             #for stream_frame_instance, result in zip(stream_frame_instance_list, results):
-            result = results[0]
+            result = next(results)
             if plot:
                 vis = result.plot()
                 cv2.imshow(stream_frame_instance.stream_name + " yolo_pose_debug", vis)
@@ -118,4 +118,4 @@ class YOLOPoseDetector:
         self.model = YOLO(model_path)
 
     def run_inference(self, frames):
-        return self.model(frames, conf=self.conf, half=True, stream=False)
+        return self.model(frames, conf=self.conf, half=True, stream=True)
