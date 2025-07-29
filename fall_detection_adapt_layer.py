@@ -34,9 +34,13 @@ def simple_detect(io_queue, frame, pre_processed_frame=None):
         while not classified_queue.empty():
             classified_queue.get_nowait()
             print("queue is not empty")
+        while not raw_cv2_frame_input_queue.empty():
+            raw_cv2_frame_input_queue.get_nowait()
+            print("queue is not empty")
+
         raw_cv2_frame_input_queue.put(frame)
         print("raw_cv2_frame_input_queue.put is done")
-        processed_frame = classified_queue.get(timeout=10.0)
+        processed_frame = classified_queue.get()
 
         if pre_processed_frame is not None:
             processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)

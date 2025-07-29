@@ -71,7 +71,7 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
     stream_frame_instance_list = list()
     #frame_list = list()
     while True:
-        stream_frame_instance_list.clear()
+        #stream_frame_instance_list.clear()
         #frame_list.clear()
         #if debug: print(f"[DEBUG] yolo_pose_worker LOOP")
         try:
@@ -79,24 +79,25 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
             stream_frame_instance = input_q.get()
             batch_time = time.perf_counter()
             stream_frame_instance.sequence_perf_counter["yolo_pose_start"] = batch_time
-            stream_frame_instance_list.append(stream_frame_instance)
+            #stream_frame_instance_list.append(stream_frame_instance)
             frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance)
             #frame_list.append(frame)
 
             results = detector.run_inference(frame)
-            for stream_frame_instance, result in zip(stream_frame_instance_list, results):
-                if plot:
-                    vis = result.plot()
-                    cv2.imshow(stream_frame_instance.stream_name + " yolo_pose_debug", vis)
-                    cv2.waitKey(1)
+            #for stream_frame_instance, result in zip(stream_frame_instance_list, results):
+            result = results[0]
+            if plot:
+                vis = result.plot()
+                cv2.imshow(stream_frame_instance.stream_name + " yolo_pose_debug", vis)
+                cv2.waitKey(1)
 
-                stream_frame_instance.human_detection_numpy = result.boxes.xyxy.cpu().numpy()
-                stream_frame_instance.pose_detection_numpy = result.keypoints.xy.cpu().numpy()
-                stream_frame_instance.pose_detection_conf = result.keypoints.conf.cpu().numpy()
-                stream_frame_instance.sequence_perf_counter["yolo_pose_end"] = time.perf_counter()
-                if output_q.full():
-                    output_q.get()
-                output_q.put(stream_frame_instance)
+            stream_frame_instance.human_detection_numpy = result.boxes.xyxy.cpu().numpy()
+            stream_frame_instance.pose_detection_numpy = result.keypoints.xy.cpu().numpy()
+            stream_frame_instance.pose_detection_conf = result.keypoints.conf.cpu().numpy()
+            stream_frame_instance.sequence_perf_counter["yolo_pose_end"] = time.perf_counter()
+            if output_q.full():
+                output_q.get()
+            output_q.put(stream_frame_instance)
 
             time.sleep(0.0001)
 
