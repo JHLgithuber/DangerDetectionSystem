@@ -19,6 +19,7 @@ Update 2025‑07‑16 (#4):
 import math
 import sys
 import time
+import traceback
 from multiprocessing import Manager, Process, freeze_support
 from multiprocessing.managers import SharedMemoryManager
 from typing import Optional
@@ -59,60 +60,63 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
 
     # tracked_objects 변수를 루프 시작 전에 초기화
     tracked = []
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 프레임 수신 실패"))
-            time.sleep(0.1)
-            continue
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 프레임 수신 실패"))
+                time.sleep(0.1)
+                continue
 
-        # 프레임 복사 (필요 시 AI용으로 별도 복사)
-        processed_frame = frame.copy()
+            # 프레임 복사 (필요 시 AI용으로 별도 복사)
+            processed_frame = frame.copy()
 
-        # 낙상감지용 프레임 복사
-        behavior_frame = frame.copy()
+            # 낙상감지용 프레임 복사
+            behavior_frame = frame.copy()
 
-        current_behavior = flags[cam_id].get("behavior", False)
-        current_equipment = flags[cam_id].get("equipment", False)
+            current_behavior = flags[cam_id].get("behavior", False)
+            current_equipment = flags[cam_id].get("equipment", False)
 
-        # 상태 변경 감지: 메시지 1회만 출력
-        if current_behavior != prev_behavior:
-            if current_behavior:
-                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 실행"))
-            else:
-                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 종료"))
-            prev_behavior = current_behavior
+            # 상태 변경 감지: 메시지 1회만 출력
+            if current_behavior != prev_behavior:
+                if current_behavior:
+                    viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 실행"))
+                else:
+                    viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 종료"))
+                prev_behavior = current_behavior
 
-        if current_equipment != prev_equipment:
+            if current_equipment != prev_equipment:
+                if current_equipment:
+                    viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 실행"))
+                else:
+                    viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 종료"))
+                prev_equipment = current_equipment
+
+            # AI 처리
             if current_equipment:
-                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 실행"))
-            else:
-                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 종료"))
-            prev_equipment = current_equipment
+                processed_frame = run_yolo_and_track(
+                    processed_frame,
+                    yolo_model,
+                    tracked,
+                    conf=0.5,
+                    nms=0.7,
+                )
 
-        # AI 처리
-        if current_equipment:
-            processed_frame = run_yolo_and_track(
-                processed_frame,
-                yolo_model,
-                tracked,
-                conf=0.5,
-                nms=0.7,
+            # 낙상 감지
+            processed_frame = fall_detection_adapt_layer.simple_detect(
+                io_queue=io_queue,
+                frame=behavior_frame,
+                pre_processed_frame=processed_frame,
+                need_detect=current_behavior
             )
 
-        # 낙상 감지
-        processed_frame = fall_detection_adapt_layer.simple_detect(
-            io_queue=io_queue,
-            frame=behavior_frame,
-            pre_processed_frame=processed_frame,
-            need_detect=current_behavior
-        )
+            # 처리된 프레임 전달
+            viewer_queue.put((cam_id, processed_frame, None))
 
-        # 처리된 프레임 전달
-        viewer_queue.put((cam_id, processed_frame, None))
-
-        # 부하 방지
-        time.sleep(1 / 30)  # 30 FPS
+            # 부하 방지
+            time.sleep(1 / 30)  # 30 FPS
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt
 
 
 # -------------------------------
@@ -342,23 +346,72 @@ def run():
 
     io_queues, frame_smm_mgr, shm_objs_dict, processes_dict =fall_detection_adapt_layer.fall_detect_init(sources)
 
-    for i, src in enumerate(sources):
-        p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
-        p.daemon = True
-        p.start()
-        procs.append(p)
+    try:
+        for i, src in enumerate(sources):
+            p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
+            p.daemon = True
+            p.start()
+            procs.append(p)
 
-    app = QApplication(sys.argv)
-    gui = NVRGUI(sources, queue, shared_flags)
-    gui.resize(1200, 800)
-    gui.show()
+        app = QApplication(sys.argv)
+        gui = NVRGUI(sources, queue, shared_flags)
+        gui.resize(1200, 800)
+        gui.show()
 
-    #if frame_smm_mgr:  # 공유메모리 정리
-    #    frame_smm_mgr.shutdown()
-    #    del frame_smm_mgr
-    #    del shm_objs_dict
+    except KeyboardInterrupt:
+        print("NVR turnoff...")
+    except Exception as e:
+        print(f"Exception: {e}")
+        traceback.print_exc()
 
-    sys.exit(app.exec_())
+    finally:  # 리소스 정리
+        exit_code = 0
+        try:
+            demo_process=processes_dict["demo_process"]
+            pose_processes =processes_dict["pose_processes"]
+            fall_checker=processes_dict["fall_checker"]
+            stream_instance_dict=processes_dict["stream_instance_dict"]
+            manager_process=processes_dict["manager_process"]
+
+            if stream_instance_dict:  # 입력스트림 종료
+                for name, instance in stream_instance_dict.items():
+                    thread = instance.kill_stream()
+                    thread.join(timeout=5.0)
+                    print(f"name: {name}, instance.is_alive: {thread.is_alive()}")
+
+            if pose_processes:
+                for proc in pose_processes:
+                    if proc.is_alive():
+                        proc.terminate()
+                for proc in pose_processes:
+                    proc.join(timeout=5.0)
+
+            if manager_process and manager_process.is_alive():
+                manager_process.terminate()
+                manager_process.join(timeout=5.0)
+
+            if demo_process and demo_process.is_alive():
+                demo_process.terminate()
+                demo_process.join(timeout=5.0)
+
+            if fall_checker:
+                fall_checker.terminate()
+                fall_checker.join(timeout=5.0)
+
+            if frame_smm_mgr:  # 공유메모리 정리
+                frame_smm_mgr.shutdown()
+                del frame_smm_mgr
+
+            print("See you later!")
+
+        except Exception as e:
+            print(f"정리 중 오류 발생: {e}")
+            traceback.print_exc()
+            exit_code = 1
+
+        finally:
+            print(f"main END...{exit_code}")
+    return exit_code
 
 
 if __name__ == "__main__":

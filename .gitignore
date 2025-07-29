@@ -367,3 +367,4 @@ data_for_test/
 /ultralytics-main/
 /yolo11x-pose.*
 
+/yolov8x-worldv2.engine
