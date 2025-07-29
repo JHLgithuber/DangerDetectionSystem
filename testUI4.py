@@ -57,8 +57,6 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
     prev_behavior = False
     prev_equipment = False
 
-    fall_detection_adapt_layer.init_detect_flow(io_queue, cap)
-
     # tracked_objects 변수를 루프 시작 전에 초기화
     tracked = []
     while True:
@@ -103,12 +101,12 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
             )
 
         # 낙상 감지
-        if current_behavior:
-            processed_frame = fall_detection_adapt_layer.simple_detect(
-                io_queue=io_queue,
-                frame=behavior_frame,
-                pre_processed_frame=processed_frame
-            )
+        processed_frame = fall_detection_adapt_layer.simple_detect(
+            io_queue=io_queue,
+            frame=behavior_frame,
+            pre_processed_frame=processed_frame,
+            need_detect=current_behavior
+        )
 
         # 처리된 프레임 전달
         viewer_queue.put((cam_id, processed_frame, None))

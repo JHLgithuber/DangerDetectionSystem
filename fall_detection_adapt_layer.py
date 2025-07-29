@@ -8,27 +8,8 @@ import falling_iou_checker
 import yolo_pose_detector
 from demo_viewer import start_imshow_demo
 
-def init_detect_flow(io_queue, cap):
-    try:
-        raw_cv2_frame_input_queue, classified_queue = io_queue
-        for _ in range(120):
-            ret, frame = cap.read()
-            if ret:
-                raw_cv2_frame_input_queue.put(frame)
-            if not classified_queue.empty():
-                classified_queue.get()
-            time.sleep(0.001)
 
-        while not raw_cv2_frame_input_queue.empty() or not classified_queue.empty():
-            classified_queue.get()
-            print("queue is not empty")
-    except Exception as e:
-        print(f"init_detect_flow error: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-def simple_detect(io_queue, frame, pre_processed_frame=None):
+def simple_detect(io_queue, frame, pre_processed_frame=None, need_detect=False):
     try:
         raw_cv2_frame_input_queue, classified_queue = io_queue
         while not classified_queue.empty():
@@ -38,13 +19,15 @@ def simple_detect(io_queue, frame, pre_processed_frame=None):
             raw_cv2_frame_input_queue.get_nowait()
             print("queue is not empty")
 
-        raw_cv2_frame_input_queue.put(frame)
-        print("raw_cv2_frame_input_queue.put is done")
-        processed_frame = classified_queue.get()
+        if need_detect:
+            raw_cv2_frame_input_queue.put(frame)
+            print("raw_cv2_frame_input_queue.put is done")
+            processed_frame = classified_queue.get()
 
-        if pre_processed_frame is not None:
-            processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)
-
+            if pre_processed_frame is not None:
+                processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)
+        else:
+            processed_frame = frame
         return processed_frame
     except Exception as e:
         print(f"simple_detect error: {e}")

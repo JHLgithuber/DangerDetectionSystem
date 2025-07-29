@@ -68,12 +68,7 @@ def yolo_pose_round_robin_worker(input_q, output_q, round_robin_input_queues, ro
 
 def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
     detector = YOLOPoseDetector(model_path=model_path, conf=conf)
-    stream_frame_instance_list = list()
-    #frame_list = list()
     while True:
-        #stream_frame_instance_list.clear()
-        #frame_list.clear()
-        #if debug: print(f"[DEBUG] yolo_pose_worker LOOP")
         try:
             # 첫 프레임을 blocking하게 대기 (최대 0.1초)
             stream_frame_instance = input_q.get()
