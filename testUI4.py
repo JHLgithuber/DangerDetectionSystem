@@ -62,6 +62,7 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
     tracked = []
     try:
         while True:
+            start_time = time.perf_counter()
             ret, frame = cap.read()
             if not ret:
                 viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 프레임 수신 실패"))
@@ -114,7 +115,9 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
             viewer_queue.put((cam_id, processed_frame, None))
 
             # 부하 방지
-            time.sleep(1 / 30)  # 30 FPS
+            end_time = time.perf_counter()
+            sleep_time= max(1/30- (end_time - start_time),0)
+            time.sleep(sleep_time)  # 30 FPS
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
 
