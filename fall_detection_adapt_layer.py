@@ -8,20 +8,45 @@ import falling_iou_checker
 import yolo_pose_detector
 from demo_viewer import start_imshow_demo
 
+def init_detect_flow(io_queue, cap):
+    try:
+        raw_cv2_frame_input_queue, classified_queue = io_queue
+        for _ in range(120):
+            ret, frame = cap.read()
+            if ret:
+                raw_cv2_frame_input_queue.put(frame)
+            if not classified_queue.empty():
+                classified_queue.get()
+            time.sleep(0.001)
+
+        while not raw_cv2_frame_input_queue.empty() or classified_queue.empty():
+            classified_queue.get()
+            print("queue is not empty")
+    except Exception as e:
+        print(f"init_detect_flow error: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 def simple_detect(io_queue, frame, pre_processed_frame=None):
-    raw_cv2_frame_input_queue, classified_queue = io_queue
-    while not classified_queue.empty():
-        classified_queue.get()
-        print("queue is not empty")
-    raw_cv2_frame_input_queue.put(frame)
-    print("raw_cv2_frame_input_queue.put is done")
-    processed_frame = classified_queue.get()
+    try:
+        raw_cv2_frame_input_queue, classified_queue = io_queue
+        while not classified_queue.empty():
+            classified_queue.get_nowait()
+            print("queue is not empty")
+        raw_cv2_frame_input_queue.put(frame)
+        print("raw_cv2_frame_input_queue.put is done")
+        processed_frame = classified_queue.get(timeout=10.0)
 
-    if pre_processed_frame is not None:
-        processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)
+        if pre_processed_frame is not None:
+            processed_frame = np.where(processed_frame != 0, processed_frame, pre_processed_frame)
 
-    return processed_frame
+        return processed_frame
+    except Exception as e:
+        print(f"simple_detect error: {e}")
+        import traceback
+        traceback.print_exc()
+        return frame
 
 
 def output_stream_classifier(output_queue, classified_queues):
@@ -31,7 +56,7 @@ def output_stream_classifier(output_queue, classified_queues):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=True):
+def fall_detect_init(sources, max_frames=240, overlay_output=True, debug_mode=True):
     """
     :param shm_names_dict:
     :param overlay_output:
@@ -128,10 +153,6 @@ def fall_detect_init(sources, max_frames=500, overlay_output=True, debug_mode=Tr
     # 입력 스트림 실행
     for name, instance in stream_instance_dict.items():
         instance.run_stream(shm_names_dict[name], )
-
-    io_queues = dict()
-    for src in sources:
-        io_queues[str(src)] = (raw_cv2_frame_input_queues[str(src)], classified_queues[str(src)])
 
     processes_dict = dict()
     processes_dict["demo_process"] = demo_process

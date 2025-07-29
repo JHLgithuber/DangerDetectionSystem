@@ -73,7 +73,7 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
     while True:
         stream_frame_instance_list.clear()
         frame_list.clear()
-        if debug: print(f"[DEBUG] yolo_pose_worker LOOP")
+        #if debug: print(f"[DEBUG] yolo_pose_worker LOOP")
         try:
             # 첫 프레임을 blocking하게 대기 (최대 0.1초)
             stream_frame_instance = input_q.get(timeout=0.1)
@@ -119,6 +119,7 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, max_batch_size, debug,
             print(f"[yolo_pose_worker] {current_process().name} is ended by KeyboardInterrupt")
         except Exception as e:
             print(f"[yolo_pose_worker ERROR] {e}")
+            traceback.print_exc()
 
 
 class YOLOPoseDetector:

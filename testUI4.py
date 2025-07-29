@@ -49,7 +49,7 @@ from demo_viewer import start_imshow_demo
 from yolo_run6 import YOLOWorldTRT, run_yolo_and_track
 
 
-def camera_process(source, cam_id, queue, flags, io_queue):
+def camera_process(source, cam_id, viewer_queue, flags, io_queue):
     # yolox_model = YOLOX_TRT(engine_path="E:/YOLOX/yolox_custom.engine")
     yolo_model = YOLOWorldTRT(engine_path="yolov8x-worldv2.engine")
 
@@ -57,12 +57,14 @@ def camera_process(source, cam_id, queue, flags, io_queue):
     prev_behavior = False
     prev_equipment = False
 
+    fall_detection_adapt_layer.init_detect_flow(io_queue, cap)
+
     # tracked_objects 변수를 루프 시작 전에 초기화
     tracked = []
     while True:
         ret, frame = cap.read()
         if not ret:
-            queue.put((cam_id, None, f"[카메라 {cam_id}] 프레임 수신 실패"))
+            viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 프레임 수신 실패"))
             time.sleep(0.1)
             continue
 
@@ -78,16 +80,16 @@ def camera_process(source, cam_id, queue, flags, io_queue):
         # 상태 변경 감지: 메시지 1회만 출력
         if current_behavior != prev_behavior:
             if current_behavior:
-                queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 실행"))
+                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 실행"))
             else:
-                queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 종료"))
+                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 넘어짐 감지 종료"))
             prev_behavior = current_behavior
 
         if current_equipment != prev_equipment:
             if current_equipment:
-                queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 실행"))
+                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 실행"))
             else:
-                queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 종료"))
+                viewer_queue.put((cam_id, None, f"[카메라 {cam_id}] 안전장비 탐지 종료"))
             prev_equipment = current_equipment
 
         # AI 처리
@@ -102,7 +104,6 @@ def camera_process(source, cam_id, queue, flags, io_queue):
 
         # 낙상 감지
         if current_behavior:
-            print("behavior")
             processed_frame = fall_detection_adapt_layer.simple_detect(
                 io_queue=io_queue,
                 frame=behavior_frame,
@@ -110,7 +111,7 @@ def camera_process(source, cam_id, queue, flags, io_queue):
             )
 
         # 처리된 프레임 전달
-        queue.put((cam_id, processed_frame, None))
+        viewer_queue.put((cam_id, processed_frame, None))
 
         # 부하 방지
         time.sleep(1 / 30)  # 30 FPS
@@ -340,13 +341,8 @@ def run():
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []
 
-    stream_many = len(sources)
-    debug_mode = True
-    max_frames=500
 
     io_queues, frame_smm_mgr, shm_objs_dict, processes_dict =fall_detection_adapt_layer.fall_detect_init(sources)
-
-
 
     for i, src in enumerate(sources):
         p = Process(target=camera_process, args=(src, i, queue, shared_flags, io_queues[str(src)]))
