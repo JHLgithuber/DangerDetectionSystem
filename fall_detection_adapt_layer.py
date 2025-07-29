@@ -1,12 +1,14 @@
 import time
-from multiprocessing.managers import SharedMemoryManager
 from multiprocessing import Queue
+from multiprocessing.managers import SharedMemoryManager
+
 import cv2
 import numpy as np
-from stream_input import InputStream
+
 import falling_iou_checker
 import yolo_pose_detector
 from demo_viewer import start_imshow_demo
+from stream_input import InputStream
 
 
 def simple_detect(io_queue, frame, pre_processed_frame=None, need_detect=True):
@@ -43,10 +45,8 @@ def output_stream_classifier(output_queue, classified_queues):
         time.sleep(0.0001)
 
 
-def fall_detect_init(sources, max_frames=120, overlay_output=True, debug_mode=True):
+def fall_detect_init(sources, max_frames=120, debug_mode=True):
     """
-    :param shm_names_dict:
-    :param overlay_output:
     :param sources: 스트림 주소나 cam_id
     :param max_frames: 스트림당 메모리 할당량
     :param debug_mode: 디버그 모드

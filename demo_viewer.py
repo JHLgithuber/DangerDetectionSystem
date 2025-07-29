@@ -109,7 +109,7 @@ def visual_from_detection_numpy(stream_frame_instance, overlay=False, debug=True
         np.ndarray: 시각화된 프레임
         :param overlay:
         :param stream_frame_instance:
-        :param cls_conf:
+
         :param debug:
     """
     frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(
@@ -474,5 +474,8 @@ def is_headless_cv2():
             if "YES" in line or "ON" in line:
                 return False  # GUI 지원됨
         return True  # GUI 백엔드가 모두 NO인 경우
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR] OpenCV build information error: {e}")
+        import traceback
+        traceback.print_exc()
         return True  # 정보 조회 실패 → 보수적으로 headless로 간주

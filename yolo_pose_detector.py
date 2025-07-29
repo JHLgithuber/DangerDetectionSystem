@@ -66,7 +66,8 @@ def yolo_pose_round_robin_worker(input_q, output_q, round_robin_input_queues, ro
         raise e
 
 
-def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
+# noinspection PyTypeChecker
+def yolo_pose_worker(input_q, output_q, model_path, conf, plot=False, ):
     detector = YOLOPoseDetector(model_path=model_path, conf=conf)
     while True:
         try:
@@ -74,12 +75,12 @@ def yolo_pose_worker(input_q, output_q, model_path, conf, debug, plot=False, ):
             stream_frame_instance = input_q.get()
             batch_time = time.perf_counter()
             stream_frame_instance.sequence_perf_counter["yolo_pose_start"] = batch_time
-            #stream_frame_instance_list.append(stream_frame_instance)
+            # stream_frame_instance_list.append(stream_frame_instance)
             frame = dataclass_for_StreamFrameInstance.load_frame_from_shared_memory(stream_frame_instance)
-            #frame_list.append(frame)
+            # frame_list.append(frame)
 
             results = detector.run_inference(frame)
-            #for stream_frame_instance, result in zip(stream_frame_instance_list, results):
+            # for stream_frame_instance, result in zip(stream_frame_instance_list, results):
             result = next(results)
             if plot:
                 vis = result.plot()

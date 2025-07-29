@@ -274,64 +274,62 @@ def detect_sitting_posture(lm2d_list, knee_angle_thresh=120, hip_angle_thresh=80
     right_ankle = lm2d_list[16]
     left_shoulder = lm2d_list[5]
     right_shoulder = lm2d_list[6]
-    
+
     # 중간점 계산
-    mid_shoulder = [(left_shoulder[0] + right_shoulder[0]) / 2, 
+    mid_shoulder = [(left_shoulder[0] + right_shoulder[0]) / 2,
                     (left_shoulder[1] + right_shoulder[1]) / 2]
-    mid_hip = [(left_hip[0] + right_hip[0]) / 2, 
+    mid_hip = [(left_hip[0] + right_hip[0]) / 2,
                (left_hip[1] + right_hip[1]) / 2]
-    
+
     # 벡터 계산
     left_thigh_vec = [left_knee[0] - left_hip[0], left_knee[1] - left_hip[1]]
     right_thigh_vec = [right_knee[0] - right_hip[0], right_knee[1] - right_hip[1]]
     left_calf_vec = [left_ankle[0] - left_knee[0], left_ankle[1] - left_knee[1]]
     right_calf_vec = [right_ankle[0] - right_knee[0], right_ankle[1] - right_knee[1]]
     torso_vec = [mid_shoulder[0] - mid_hip[0], mid_shoulder[1] - mid_hip[1]]
-    
+
     # 각도 계산 함수
     def calculate_angle(vec1, vec2):
         dot_product = vec1[0] * vec2[0] + vec1[1] * vec2[1]
-        mag1 = math.sqrt(vec1[0]**2 + vec1[1]**2)
-        mag2 = math.sqrt(vec2[0]**2 + vec2[1]**2)
+        mag1 = math.sqrt(vec1[0] ** 2 + vec1[1] ** 2)
+        mag2 = math.sqrt(vec2[0] ** 2 + vec2[1] ** 2)
         cos_angle = dot_product / (mag1 * mag2 + 1e-6)
         angle_rad = math.acos(max(min(cos_angle, 1.0), -1.0))
         return math.degrees(angle_rad)
-    
+
     # 무릎 각도 계산 (허벅지와 종아리 사이 각도)
     left_knee_angle = calculate_angle(
-        [-left_thigh_vec[0], -left_thigh_vec[1]], 
+        [-left_thigh_vec[0], -left_thigh_vec[1]],
         [left_calf_vec[0], left_calf_vec[1]]
     )
     right_knee_angle = calculate_angle(
-        [-right_thigh_vec[0], -right_thigh_vec[1]], 
+        [-right_thigh_vec[0], -right_thigh_vec[1]],
         [right_calf_vec[0], right_calf_vec[1]]
     )
-    
+
     # 엉덩이 각도 계산 (상체와 허벅지 사이 각도)
     left_hip_angle = calculate_angle(
-        [torso_vec[0], torso_vec[1]], 
+        [torso_vec[0], torso_vec[1]],
         [-left_thigh_vec[0], -left_thigh_vec[1]]
     )
     right_hip_angle = calculate_angle(
-        [torso_vec[0], torso_vec[1]], 
+        [torso_vec[0], torso_vec[1]],
         [-right_thigh_vec[0], -right_thigh_vec[1]]
     )
 
-    
     # 앉은 자세 판별 조건
     knee_bent = (left_knee_angle < knee_angle_thresh or right_knee_angle < knee_angle_thresh)
     hip_bent = (left_hip_angle < hip_angle_thresh or right_hip_angle < hip_angle_thresh)
 
-
     # 결과 판정
     is_sitting = knee_bent and hip_bent
-    
+
     reason = (f"Knee angles (L/R): {left_knee_angle:.1f}/{right_knee_angle:.1f} (threshold: {knee_angle_thresh}), "
               f"Hip angles (L/R): {left_hip_angle:.1f}/{right_hip_angle:.1f} (threshold: {hip_angle_thresh}), ")
-    
+
     if debug:
         print(f"Sitting detection: {is_sitting}, {reason}")
-    
+
     return is_sitting, reason
 
 
@@ -356,10 +354,9 @@ def detect_sitting(detection_result, knee_angle_thresh=70, hip_angle_thresh=60, 
     if detection_result is None or len(detection_result) == 0:
         return None
 
-    
     # 앉은 자세 판별
     result = detect_sitting_posture(detection_result, knee_angle_thresh, hip_angle_thresh, debug)
-    
+
     if result[0]:
         if debug: print(f"SITTING POSTURE DETECTED: {result[1]}")
         return True
@@ -381,6 +378,9 @@ def detect_fall(detection_result, conf, debug=False):
             - True: 낙상 감지됨
             - False: 낙상 아님
             - None: 판단 불가 (신뢰도 부족 또는 landmark 없음)
+            :param detection_result:
+            :param debug:
+            :param conf:
     """
 
     # 랜드마크 리스트가 없으면 반환
@@ -394,9 +394,9 @@ def detect_fall(detection_result, conf, debug=False):
     print(f"is_sitting: {is_sitting}")
 
     result_by_angle = detect_fall_static_spine_angle(detection_result)
-    result_by_recline = detect_fall_static_recline_ratio(detection_result)
+    detect_fall_static_recline_ratio(detection_result)
     result_by_bbox = detect_fall_static_joint_bbox_ratio(detection_result)
-    result_by_asymmetry = detect_fall_static_shoulder_hip_diff(detection_result)
+    detect_fall_static_shoulder_hip_diff(detection_result)
 
     if is_sitting[0]:
         if debug: print("FALL DETECTED Denied by sitting posture")

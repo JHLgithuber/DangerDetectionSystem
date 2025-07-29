@@ -60,7 +60,6 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
     Raises:
         Exception: 공유 메모리 접근 또는 복사 중 예외처리.
     """
-    shm = None
     try:
         shm = SharedMemory(name=shm_name)
         buffer = np.ndarray(frame.shape, dtype=np.uint8, buffer=shm.buf)
@@ -71,7 +70,6 @@ def save_frame_to_shared_memory(frame, shm_name, debug=False):
     except Exception as e:
         print(f"공유 메모리 저장 중 오류: {e}")
         return None
-
 
 
 def load_frame_from_shared_memory(stream_frame_instance, copy=True, overlay=False, debug=False):

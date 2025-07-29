@@ -63,8 +63,6 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
     pose_processes = None
     manager_process = None
     demo_process = None
-    server_thread = None
-    consumer_thread = None
 
     try:
         # 프로세스 코어수 연동
@@ -102,7 +100,7 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
         server_queue = None
         if web_viewer:
             server_queue = Queue(maxsize=3 * stream_many)
-            server_thread, consumer_thread = stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
+            _, _ = stream.run_stream_server(server_queue, host='0.0.0.0', port=5500)
 
         # 출력 스트림 설정
         output_metadata_queue = Queue(maxsize=30 * stream_many)
@@ -120,7 +118,6 @@ def main(url_list, debug_mode=True, show_latency=True, show_fps=True,
                                                                                    input_q=input_metadata_queue,
                                                                                    output_q=after_pose_estimation_queue,
                                                                                    conf=0.3,
-                                                                                   max_batch_size=20,
                                                                                    worker_num=6,
                                                                                    debug=debug_mode, )
 

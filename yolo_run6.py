@@ -17,7 +17,7 @@ class YOLOWorldTRT:
             return [], [], []
 
 
-def run_yolo_and_track(image, yolox_model, tracked_list, conf=0.7, nms=0.7):
+def run_yolo_and_track(image, yolox_model, conf=0.7):
     boxes, confs, class_ids = yolox_model.infer(image, conf=conf)
 
     for box, conf_score, cls_id in zip(boxes, confs, class_ids):

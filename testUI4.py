@@ -1,10 +1,10 @@
 """
 PyQt5‑based NVR GUI for multi‑camera monitoring with per‑camera AI (YOLOX) and polygonal area setting.
 Unified control buttons are at the right‑hand side panel:
-  • [영역 설정]  – Toggle area‑input mode for the currently selected camera.
-  • [되돌리기]    – Remove last point of current polygon.
-  • [설정 완료]  – Close and fix the polygon (≥3 pts).
-  • [영역 삭제]  – Clear polygon for selected camera.
+  • [영역 설정] – Toggle area‑input mode for the currently selected camera.
+  • [되돌리기] – Remove the last point of the current polygon.
+  • [설정 완료] – Close and fix the polygon (≥3 pts).
+  • [영역 삭제] – Clear polygon for selected camera.
 
 Update 2025‑07‑16 (#4):
   • Added robust **camera selection logic** so only one camera is selected at a time and the
@@ -21,7 +21,6 @@ import sys
 import time
 import traceback
 from multiprocessing import Manager, Process, freeze_support
-from multiprocessing.managers import SharedMemoryManager
 from typing import Optional
 
 import cv2
@@ -44,9 +43,6 @@ from PyQt5.QtWidgets import (
 )
 
 import fall_detection_adapt_layer
-import falling_iou_checker
-import yolo_pose_detector
-from demo_viewer import start_imshow_demo
 from yolo_run6 import YOLOWorldTRT, run_yolo_and_track
 
 
@@ -98,9 +94,7 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
                 processed_frame = run_yolo_and_track(
                     processed_frame,
                     yolo_model,
-                    tracked,
                     conf=0.5,
-                    nms=0.7,
                 )
 
             # 낙상 감지
@@ -117,8 +111,8 @@ def camera_process(source, cam_id, viewer_queue, flags, io_queue):
             # 부하 방지
 
             proc_time = time.perf_counter() - start_time
-            sleep_time= max(1/30- proc_time,0.000001)
-            fps=1/(sleep_time+proc_time)
+            sleep_time = max(1 / 30 - proc_time, 0.000001)
+            fps = 1 / (sleep_time + proc_time)
             print(f"{cam_id}\tFPS: {fps:.02f} ProcTime: {proc_time:.02f}  SleepTime: {sleep_time:.02f}")
             time.sleep(sleep_time)  # 30 FPS
     except KeyboardInterrupt:
@@ -143,6 +137,7 @@ class CameraWidget(QWidget):
         self.label = QLabel(f"Camera {self.cam_id}")
         self.video_label = QLabel()
         self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # noinspection PyUnresolvedReferences
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.installEventFilter(self)  # capture mouse clicks
 
@@ -183,6 +178,7 @@ class CameraWidget(QWidget):
             if isinstance(window, NVRGUI):
                 window.select_camera(self.cam_id)  # always select on click
                 if window.is_area_mode:
+                    # noinspection PyUnresolvedReferences
                     if event.button() == Qt.LeftButton:
                         if not self._polygon_fixed:
                             self._points.append(event.pos())
@@ -190,6 +186,7 @@ class CameraWidget(QWidget):
         return super().eventFilter(obj, event)
 
     # --- Drawing & frame update ---
+    # noinspection PyTypeChecker
     def update_frame_direct(self, frame: np.ndarray):
         # draw polygon if exists
         if self._points:
@@ -250,6 +247,7 @@ class NVRGUI(QWidget):
 
         self._update_cam_grid()
 
+        # noinspection PyArgumentList
         self.alerts = QTextEdit(readOnly=True)
         self.alerts.setPlaceholderText("위험행동 / 안전위험 알림...")
 
@@ -344,13 +342,12 @@ def run():
     manager = Manager()
     shared_flags = manager.dict()
     queue = manager.Queue()
-    sources = [0,1]  # adjust to your cameras or RTSP streams
+    sources = [0, 1]  # adjust to your cameras or RTSP streams
     for i in range(len(sources)):
         shared_flags[i] = {"behavior": False, "equipment": False}
     procs = []
 
-
-    io_queues, frame_smm_mgr, shm_objs_dict, processes_dict =fall_detection_adapt_layer.fall_detect_init(sources)
+    io_queues, frame_smm_mgr, shm_objs_dict, processes_dict = fall_detection_adapt_layer.fall_detect_init(sources)
 
     demo_process = None
     pose_processes = None
