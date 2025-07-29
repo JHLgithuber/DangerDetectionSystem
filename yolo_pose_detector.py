@@ -131,4 +131,4 @@ class YOLOPoseDetector:
         self.model = YOLO(model_path)
 
     def run_inference(self, frames):
-        return self.model(frames, conf=self.conf, half=True, stream=True)
+        return self.model(frames, conf=self.conf, half=True, stream=False)

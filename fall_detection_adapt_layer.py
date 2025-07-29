@@ -19,7 +19,7 @@ def init_detect_flow(io_queue, cap):
                 classified_queue.get()
             time.sleep(0.001)
 
-        while not raw_cv2_frame_input_queue.empty() or classified_queue.empty():
+        while not raw_cv2_frame_input_queue.empty() or not classified_queue.empty():
             classified_queue.get()
             print("queue is not empty")
     except Exception as e:
@@ -129,7 +129,7 @@ def fall_detect_init(sources, max_frames=240, overlay_output=True, debug_mode=Tr
 
     # Pose Estimation
     after_pose_estimation_queue = Queue(maxsize=70 * stream_many)
-    pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.engine",
+    pose_processes, manager_process = yolo_pose_detector.run_yolo_pose_process(model_path="yolo11x-pose.pt",
                                                                                input_q=input_metadata_queue,
                                                                                output_q=after_pose_estimation_queue,
                                                                                conf=0.3,
